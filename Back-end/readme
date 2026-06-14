@@ -1,0 +1,19 @@
+/etc/nginx/sites-available/default
+sudo nginx -t        # 測試設定檔
+sudo systemctl restart nginx
+
+/etc/systemd/system/chordBackend.service
+
+sudo apt update && sudo apt upgrade -y
+
+# 安裝 Nginx（Web Server）
+sudo apt install -y nginx
+
+# 安裝 Python 3 & pip & venv
+sudo apt install -y python3 python3-pip python3-venv
+
+# 安裝 Node.js（用於建置 Vue）
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+pip install fastapi uvicorn
