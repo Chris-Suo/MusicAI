@@ -12,6 +12,7 @@ const isAnalyzing = ref(false)
 const progress = ref(0)
 const progressLabel = ref('')
 const analysisResult = ref(null)
+// const analysisResult = ref({"BTC":{"key":"C major","tuning":{"a4_hz":439.97,"tuning_offset_cents":-12.0,"status":"flat","status_text":"偏低 12.0 cents"},"timeline":[{"chord":"N","start":0.0,"dur":0.741},{"chord":"C","start":0.741,"dur":2.129},{"chord":"F","start":2.87,"dur":2.778},{"chord":"G","start":5.648,"dur":2.871},{"chord":"C","start":8.519,"dur":3.981}]},"Essentia":"{\"LUFS\": -24.84,\"BPM\": 79.57,\"Beats\": 16}"})
 
 const PROGRESS_STEPS = [
   '正在解析音訊波形...',
@@ -54,6 +55,7 @@ async function onAnalyze() {
     progressLabel.value = '分析完成！'
     await new Promise((r) => setTimeout(r, 300))
     analysisResult.value = result
+    console.log(result)
   } catch (err) {
     clearInterval(interval)
     console.error('Analysis failed:', err)
@@ -88,6 +90,7 @@ async function onAnalyze() {
       />
 
       <ResultsPanel v-if="analysisResult" :data="analysisResult" />
+      <!-- <ResultsPanel :data="analysisResult" /> -->
     </div>
   </div>
 </template>
