@@ -4,8 +4,7 @@ import shutil
 import json
 from pathlib import Path
 
-# 調整為你的 BTC 實際路徑
-BTC_DIR = Path("/home/ubuntu/BTC/BTC-ISMIR19")
+BTC_DIR = Path("/home/musicai/Projects/MusicAI/Back-end/BTC/BTC-ISMIR19")
 BTC_SCRIPT = BTC_DIR / "test.py"
 BTC_PYTHON = BTC_DIR / "../venv/bin/python"
 
@@ -21,7 +20,6 @@ def parse_tuning_file(tuning_path: Path) -> dict:
     with open(tuning_path, "r") as f:
         return json.load(f)
 
-# 解析 .lab 格式的結果檔
 def parse_lab_file(lab_path: Path) -> list[dict]:
     timeline = []
     with open(lab_path, "r") as f:
@@ -37,7 +35,6 @@ def parse_lab_file(lab_path: Path) -> list[dict]:
             })
     return timeline
 
-# 推測主調（出現時長最長的非 N 和弦的根音）
 def infer_key(timeline: list[dict]) -> str:
     dur_map = {}
     for item in timeline:
@@ -49,14 +46,12 @@ def infer_key(timeline: list[dict]) -> str:
     if not dur_map:
         return "Unknown"
     dominant = max(dur_map, key=dur_map.get)
-    # 簡易大小調判斷：有 min 就標 minor，否則 major
     for item in timeline:
         c = item["chord"]
         if c.startswith(dominant + ":min"):
             return f"{dominant} minor"
     return f"{dominant} major"
 
-# 主流程：接收 wav bytes，執行 BTC，回傳結果
 def run_btc(audio_bytes: bytes, filename: str) -> dict:
     job_id = uuid.uuid4().hex
     audio_dir = Path(f"/tmp/btc_audio_{job_id}")
@@ -66,10 +61,8 @@ def run_btc(audio_bytes: bytes, filename: str) -> dict:
 
     wav_path = audio_dir / filename
     try:
-        # 1. 存 wav 到暫存資料夾
         wav_path.write_bytes(audio_bytes)
 
-        # 2. 執行 BTC
         result = subprocess.run(
             [
                 str(BTC_PYTHON), str(BTC_SCRIPT),
@@ -86,24 +79,20 @@ def run_btc(audio_bytes: bytes, filename: str) -> dict:
         if result.returncode != 0:
             raise RuntimeError(f"BTC failed:\n{result.stderr}")
 
-        # 3. 找對應的 .lab 結果檔
         stem = Path(filename).stem
         lab_path = save_dir / f"{stem}.lab"
         tuning_path = save_dir / f"{stem}_tuning.json"
         if not lab_path.exists():
-            # BTC 有時會改副檔名，找第一個 .lab
             candidates = list(save_dir.glob("*.lab"))
             if not candidates:
                 raise FileNotFoundError("No .lab file generated")
             lab_path = candidates[0]
 
-        # 4. 解析並回傳
         timeline = parse_lab_file(lab_path)
         key = infer_key(timeline)
         tuning   = parse_tuning_file(tuning_path)
         return {"key": key, "tuning":  tuning, "timeline": timeline}
 
     finally:
-        # 5. 清除暫存
         shutil.rmtree(audio_dir, ignore_errors=True)
         shutil.rmtree(save_dir, ignore_errors=True)
