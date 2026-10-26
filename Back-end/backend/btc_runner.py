@@ -35,23 +35,6 @@ def parse_lab_file(lab_path: Path) -> list[dict]:
             })
     return timeline
 
-def infer_key(timeline: list[dict]) -> str:
-    dur_map = {}
-    for item in timeline:
-        c = item["chord"]
-        if c == "N":
-            continue
-        root = c.split(":")[0]
-        dur_map[root] = dur_map.get(root, 0) + item["dur"]
-    if not dur_map:
-        return "Unknown"
-    dominant = max(dur_map, key=dur_map.get)
-    for item in timeline:
-        c = item["chord"]
-        if c.startswith(dominant + ":min"):
-            return f"{dominant} minor"
-    return f"{dominant} major"
-
 def run_btc(audio_bytes: bytes, filename: str) -> dict:
     job_id = uuid.uuid4().hex
     audio_dir = Path(f"/tmp/btc_audio_{job_id}")
@@ -89,9 +72,8 @@ def run_btc(audio_bytes: bytes, filename: str) -> dict:
             lab_path = candidates[0]
 
         timeline = parse_lab_file(lab_path)
-        key = infer_key(timeline)
         tuning   = parse_tuning_file(tuning_path)
-        return {"key": key, "tuning":  tuning, "timeline": timeline}
+        return {"tuning":  tuning, "timeline": timeline}
 
     finally:
         shutil.rmtree(audio_dir, ignore_errors=True)

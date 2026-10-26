@@ -89,7 +89,7 @@ async function onAnalyze() {
         :label="progressLabel"
       />
 
-      <ResultsPanel v-if="analysisResult" :data="analysisResult" />
+      <ResultsPanel v-if="analysisResult" :data="analysisResult" :audio-file="selectedFile" />
       <!-- <ResultsPanel :data="analysisResult" /> -->
     </div>
   </div>

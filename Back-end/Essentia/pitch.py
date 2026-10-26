@@ -1,4 +1,5 @@
 import sys
+import json
 import essentia.standard as es
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,10 +43,25 @@ audio = es.MonoLoader(filename=music, sampleRate=44100)()
 rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
 bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(audio)
 
+# ---------------------------------------------------------------------------
+# 調性分析（取代原本 BTC 端 btc_runner.infer_key 的結果）
+# KeyExtractor 輸出 key（A~G）、scale（major / minor）、strength（調性強度）
+# KEY_PROFILE 可改成 "temperley"、"krumhansl"、"edma" 等，預設 "bgate"
+# ---------------------------------------------------------------------------
+KEY_PROFILE = "bgate"
+key_extractor = es.KeyExtractor(profileType=KEY_PROFILE, sampleRate=44100)
+key, scale, key_strength = key_extractor(audio)
+
 with open(output_json, "w") as f:
-    f.write(f'{{"LUFS": {integrated:.2f},')
-    f.write(f'"BPM": {bpm:.2f},')
-    f.write(f'"Beats": {len(beats)}}}')
+    json.dump({
+        "LUFS": round(float(integrated), 2),
+        "BPM": round(float(bpm), 2),
+        # 每一拍的時間點（秒），前端用來畫節拍時間軸
+        "Beats": [round(float(t), 3) for t in beats],
+        "Key": f"{key} {scale}",            # 例如 "C major"、"F# minor"
+        "KeyStrength": round(float(key_strength), 3),
+        "KeyProfile": KEY_PROFILE,
+    }, f, ensure_ascii=False)
 
 
 def hz_to_semitone(freq, A4=440.0):

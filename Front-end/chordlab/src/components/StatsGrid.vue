@@ -1,10 +1,17 @@
 <script setup>
+import { computed } from 'vue'
 import SectionLabel from '@/components/SectionLabel.vue'
+import TuningMeter from '@/components/TuningMeter.vue'
 
-defineProps({
+const props = defineProps({
   keyName: {
     type: String,
     default: '—',
+  },
+  // Essentia KeyExtractor 的 strength，作為調性信心度
+  keyConfidence: {
+    type: Number,
+    default: null,
   },
   chordCount: {
     type: Number,
@@ -25,6 +32,13 @@ defineProps({
   }
 })
 
+const confidenceText = computed(() => {
+  const s = props.keyConfidence
+  if (s === null || s === undefined || Number.isNaN(s)) return '信心度 —'
+  const pct = Math.round(Math.min(1, Math.max(0, s)) * 100)
+  return `信心度 ${pct}%`
+})
+
 function tuningColor(status) {
   if (status === 'standard') return 'var(--accent2)'    // 綠色
   if (status === 'sharp')    return 'var(--accent3)'    // 橘色
@@ -39,8 +53,8 @@ function tuningColor(status) {
     <div class="grid">
       <div class="card">
         <div class="label">偵測到的調性</div>
-        <div class="value accent">{{ keyName }}</div>
-        <div class="sub">信心度 94%</div>
+        <div class="value accent">{{ keyName || '—' }}</div>
+        <div class="sub">{{ confidenceText }}</div>
       </div>
       <div class="card">
         <div class="label">和弦總數</div>

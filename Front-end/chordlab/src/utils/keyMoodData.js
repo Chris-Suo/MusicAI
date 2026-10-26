@@ -2,10 +2,10 @@
  * 調性情緒對照表
  * 來源：Christian Friedrich Schubart《Ideen zu einer Ästhetik der Tonkunst》（1806）
  *
- * key_id 的命名規則與 BTC 輸出的 infer_key() 結果對應：
+ * key_id 的命名規則與 Essentia KeyExtractor 的結果（pitch.py 輸出的 Key）對應：
  *   "C major", "C minor", "C# minor", "Db major" ...
  *
- * 若 BTC 使用 enharmonic 等效（升降互換），aliases 欄位提供備用名稱。
+ * 若輸出使用 enharmonic 等效（升降互換），aliases 欄位提供備用名稱。
  */
 export const KEY_MOOD_MAP = {
   'C major': {
@@ -227,7 +227,7 @@ export const KEY_MOOD_MAP = {
 }
 
 /**
- * 根據 BTC 輸出的 key 字串查找情緒資料。
+ * 根據 Essentia 輸出的 key 字串查找情緒資料。
  * 支援大小寫不敏感、enharmonic 別名查找。
  *
  * @param {string} keyStr  例如 "C major", "F# minor", "Bb major"

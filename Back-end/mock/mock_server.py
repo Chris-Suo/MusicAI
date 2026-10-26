@@ -8,13 +8,13 @@ ChordLab 假後端（Mock Server）
 
     {
       "BTC": {
-        "key": "C major",
         "tuning": {"a4_hz": 440.0, "tuning_offset_cents": -12.0,
                    "status": "flat", "status_text": "偏低 12.0 cents"},
         "timeline": [{"chord": "N", "start": 0.0, "dur": 0.743}, ...]
       },
       "Essentia": {
-        "essentia": {"LUFS": -14.2, "BPM": 96.3, "Beats": 48},
+        "essentia": {"LUFS": -14.2, "BPM": 96.3, "Beats": [0.412, 1.035, 1.659, ...],
+                     "Key": "C major", "KeyStrength": 0.82, "KeyProfile": "bgate"},
         "image_base64": "<png base64>",
         "image_mime": "image/png"
       }
@@ -24,7 +24,7 @@ ChordLab 假後端（Mock Server）
   1. 先產生「BTC test.py 會寫出來的」 .lab 與 _tuning.json 檔
   2. 先產生「pitch.py 會寫出來的」 EssentiaOutput.json 與 fig.png
   3. 再交給 backend/btc_runner.py、backend/essentia_runner.py 裡原本的
-     parse_lab_file / infer_key / parse_tuning_file /
+     parse_lab_file / parse_tuning_file /
      parse_essentia_file / encode_image_base64 去解析
   （找不到 backend 資料夾時會用本檔內的等價實作）
 
@@ -75,7 +75,7 @@ MAX_UPLOAD = 50 * 1024 * 1024  # 與 main.py 相同：50 MB
 USING_REAL_PARSERS = False
 try:
     sys.path.insert(0, str(BACKEND_DIR))
-    from btc_runner import infer_key, parse_lab_file, parse_tuning_file  # noqa: E402
+    from btc_runner import parse_lab_file, parse_tuning_file  # noqa: E402
     from essentia_runner import encode_image_base64, parse_essentia_file  # noqa: E402
 
     USING_REAL_PARSERS = True
@@ -97,25 +97,9 @@ except Exception:  # pragma: no cover - 只在 backend 資料夾不在時使用
                              "dur": round(end - start, 3)})
         return timeline
 
-    def infer_key(timeline: list) -> str:
-        dur_map = {}
-        for item in timeline:
-            c = item["chord"]
-            if c == "N":
-                continue
-            root = c.split(":")[0]
-            dur_map[root] = dur_map.get(root, 0) + item["dur"]
-        if not dur_map:
-            return "Unknown"
-        dominant = max(dur_map, key=dur_map.get)
-        for item in timeline:
-            if item["chord"].startswith(dominant + ":min"):
-                return f"{dominant} minor"
-        return f"{dominant} major"
-
     def parse_essentia_file(json_path: Path) -> dict:
         if not json_path.exists():
-            return {"LUFS": None, "BPM": None, "Beats": None,
+            return {"LUFS": None, "BPM": None, "Beats": None, "Key": None, "KeyStrength": None,
                     "status": "unknown", "status_text": "無 Essentia 分析資料"}
         return json.loads(json_path.read_text())
 
@@ -135,7 +119,8 @@ SCENARIOS = {
     "complex":      "大量七和弦、sus、轉位外的延伸和弦（測試標籤顯示）",
     "long":         "忽略音檔長度，固定產生 4 分鐘的長曲",
     "short":        "忽略音檔長度，固定產生 5 秒的短曲",
-    "silent":       "整段都是 N（BTC 沒抓到和弦，key 會是 Unknown）",
+    "silent":       "整段都是 N（BTC 沒抓到和弦；Essentia 仍給 key，但 strength 很低）",
+    "low_key":      "Essentia 調性信心度很低（KeyStrength 0.2~0.4）",
     "no_image":     "Essentia 沒產生 fig.png（image_base64 = null）",
     "no_essentia":  "pitch.py 沒寫出 json（走 parse_essentia_file 的 fallback）",
     "no_tuning":    "BTC 沒寫出 _tuning.json（走 parse_tuning_file 的 fallback）",
@@ -153,6 +138,10 @@ CONFIG = {"scenario": "normal", "tuning": "random", "delay": 1.5, "seed": None}
 ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 # BTC 預設 hop_length=2048、sr=22050 → 每幀約 0.0929 秒，邊界會落在這個格點上
 FRAME = 2048 / 22050
+
+
+# Essentia 輸出的調名寫法（推測：升降混用，與前端 KEY_MOOD_MAP 主鍵一致；前端 aliases 也接受另一種寫法）
+KEY_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 
 
 def chord_label(root_idx: int, quality: str) -> str:
@@ -217,13 +206,14 @@ def snap(t: float) -> float:
     return round(t / FRAME) * FRAME
 
 
-def make_lab(rng: random.Random, duration: float, bpm: float, scenario: str) -> str:
-    """產生 BTC test.py 格式的 .lab 文字：'start end chord' 每行一筆"""
-    if scenario == "silent":
-        return "%.3f %.3f %s\n" % (0.0, snap(duration), "N")
-
+def make_lab(rng: random.Random, duration: float, bpm: float, scenario: str):
+    """產生 BTC test.py 格式的 .lab 文字：'start end chord' 每行一筆
+    回傳 (lab 文字, 主音 index, "major"/"minor")，主音給假的 Essentia key 用"""
     mode = {"major": "major", "minor": "minor"}.get(scenario) or rng.choice(["major", "minor"])
     tonic = rng.randrange(12)
+    if scenario == "silent":
+        return "%.3f %.3f %s\n" % (0.0, snap(duration), "N"), tonic, mode
+
     degrees, ext, progs = (
         (MAJOR_DEGREES, MAJOR_EXT, MAJOR_PROGRESSIONS) if mode == "major"
         else (MINOR_DEGREES, MINOR_EXT, MINOR_PROGRESSIONS)
@@ -259,7 +249,7 @@ def make_lab(rng: random.Random, duration: float, bpm: float, scenario: str) -> 
         i += 1
     if snap(duration) - t >= FRAME:
         lines.append((t, snap(duration), "N"))
-    return "".join("%.3f %.3f %s\n" % ln for ln in lines)
+    return "".join("%.3f %.3f %s\n" % ln for ln in lines), tonic, mode
 
 
 def make_tuning(rng: random.Random, mode: str) -> dict:
@@ -284,11 +274,32 @@ def make_tuning(rng: random.Random, mode: str) -> dict:
             "status": status, "status_text": status_text}
 
 
-def make_essentia(rng: random.Random, duration: float, bpm: float) -> dict:
+def make_beats(rng: random.Random, duration: float, bpm: float) -> list:
+    """模擬 RhythmExtractor2013 的 beats：每一拍的時間（秒），帶一點抖動與緩慢的速度漂移"""
+    beats, t = [], rng.uniform(0.1, 0.6)
+    period = 60.0 / bpm
+    drift = rng.uniform(-0.03, 0.03)  # 整首歌速度最多漂移約 ±3%
+    while t < duration - 0.05:
+        beats.append(round(t, 3))
+        progress = t / max(duration, 1e-6)
+        t += period * (1 + drift * progress) + rng.gauss(0, 0.008)
+    return beats
+
+
+def make_essentia(rng: random.Random, duration: float, bpm: float,
+                  tonic: int, mode: str, scenario: str) -> dict:
+    """pitch.py 寫出的 EssentiaOutput.json（含 KeyExtractor 結果）"""
+    if scenario in ("silent", "low_key"):
+        strength = rng.uniform(0.2, 0.4)
+    else:
+        strength = rng.uniform(0.55, 0.92)
     return {
         "LUFS": round(rng.uniform(-24, -8), 2),
         "BPM": round(bpm, 2),
-        "Beats": int(duration * bpm / 60),
+        "Beats": make_beats(rng, duration, bpm),
+        "Key": f"{KEY_NAMES[tonic]} {mode}",
+        "KeyStrength": round(strength, 3),
+        "KeyProfile": "bgate",
     }
 
 
@@ -343,7 +354,8 @@ def build_result(audio: bytes, filename: str, cfg: dict) -> dict:
         # --- BTC 端：test.py 寫出的檔案 ---
         lab_path = work / f"{stem}.lab"
         tuning_path = work / f"{stem}_tuning.json"
-        lab_path.write_text(make_lab(rng, duration, bpm, scenario))
+        lab_text, tonic, mode = make_lab(rng, duration, bpm, scenario)
+        lab_path.write_text(lab_text)
         if scenario != "no_tuning":
             tuning_path.write_text(json.dumps(make_tuning(rng, cfg["tuning"]), ensure_ascii=False, indent=2))
 
@@ -351,13 +363,13 @@ def build_result(audio: bytes, filename: str, cfg: dict) -> dict:
         png_path = work / "fig.png"
         json_path = work / "EssentiaOutput.json"
         if scenario != "no_essentia":
-            json_path.write_text(json.dumps(make_essentia(rng, duration, bpm)))
+            json_path.write_text(json.dumps(make_essentia(rng, duration, bpm, tonic, mode, scenario)))
         if scenario not in ("no_image", "no_essentia"):
             make_pitch_png(rng, png_path)
 
         # --- 用真後端的函式解析（同 run_btc / run_essentia 的回傳結構）---
         timeline = parse_lab_file(lab_path)
-        btc = {"key": infer_key(timeline), "tuning": parse_tuning_file(tuning_path), "timeline": timeline}
+        btc = {"tuning": parse_tuning_file(tuning_path), "timeline": timeline}
         essentia = {
             "essentia": parse_essentia_file(json_path),
             "image_base64": encode_image_base64(png_path),

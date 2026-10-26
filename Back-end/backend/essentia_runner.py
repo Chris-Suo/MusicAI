@@ -18,6 +18,8 @@ def parse_essentia_file(json_path: Path) -> dict:
             "LUFS": None,
             "BPM": None,
             "Beats": None,
+            "Key": None,
+            "KeyStrength": None,
             "status": "unknown",
             "status_text": "無 Essentia 分析資料",
         }

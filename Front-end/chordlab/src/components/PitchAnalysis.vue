@@ -39,7 +39,7 @@ const essentia = computed(() => props.essentiaResult?.essentia ?? null)
           <div class="chord-name">LUFS</div>
         </div>
         <div class="chip">
-          <div class="roman">{{ essentia.Beats ?? '—' }}</div>
+          <div class="roman">{{ Array.isArray(essentia.Beats) ? essentia.Beats.length : (essentia.Beats ?? '—') }}</div>
           <div class="chord-name">Beats</div>
         </div>
       </div>
