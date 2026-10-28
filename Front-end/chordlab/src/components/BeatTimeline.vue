@@ -17,6 +17,8 @@ const props = defineProps({
   audioFile: { type: Object, default: null },
   // Essentia 不提供小節線，這裡假設 4/4、從第一拍開始算小節
   beatsPerBar: { type: Number, default: 4 },
+  // 要標示的時間段（例如和弦進行分析選到的進行）：[{ start, end }]
+  highlights: { type: Array, default: () => [] },
 })
 
 // ---------------------------------------------------------------------------
@@ -294,6 +296,21 @@ async function setZoom(delta) {
   }
 }
 
+// 有新的標示時，把第一段捲到畫面中
+watch(
+  () => props.highlights,
+  async (hl) => {
+    if (!hl?.length || playing.value) return
+    await nextTick()
+    const el = scroller.value
+    if (!el) return
+    const first = x(hl[0].start)
+    if (first < el.scrollLeft || first > el.scrollLeft + el.clientWidth - 40) {
+      el.scrollLeft = Math.max(0, first - 24)
+    }
+  },
+)
+
 // ---------------------------------------------------------------------------
 // 格式化
 // ---------------------------------------------------------------------------
@@ -405,6 +422,17 @@ onBeforeUnmount(() => {
                   <text :x="x(t) + 3" :y="RULER_H - 8" class="tick-text">{{ fmtTick(t) }}</text>
                 </g>
               </g>
+
+              <!-- 和弦進行分析選到的段落 -->
+              <rect
+                v-for="(h, i) in highlights"
+                :key="'h' + i"
+                :x="x(h.start)"
+                :y="RULER_H"
+                :width="Math.max(2, x(h.end) - x(h.start))"
+                :height="SVG_H - RULER_H"
+                class="hl-range"
+              />
 
               <!-- 和弦（BTC） -->
               <g>
@@ -682,6 +710,13 @@ onBeforeUnmount(() => {
 .grid {
   stroke: rgba(255, 255, 255, 0.05);
   stroke-width: 1;
+}
+
+.hl-range {
+  fill: rgba(124, 106, 245, 0.14);
+  stroke: rgba(124, 106, 245, 0.5);
+  stroke-width: 1;
+  pointer-events: none;
 }
 
 .tick-text {
