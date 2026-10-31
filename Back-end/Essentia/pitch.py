@@ -52,15 +52,44 @@ KEY_PROFILE = "bgate"
 key_extractor = es.KeyExtractor(profileType=KEY_PROFILE, sampleRate=44100)
 key, scale, key_strength = key_extractor(audio)
 
+# ---------------------------------------------------------------------------
+# 給前端自己畫圖的資料（前端用 SVG 畫，可切換深淺色、跟播放同步、算占比）
+#   PitchContour：主旋律音高，約每 50ms 一點，MIDI 音高（A4 = 69，可帶小數），null = 沒有旋律
+#   LoudnessCurve：短時響度（3 秒視窗），每 0.5 秒一點，單位 LUFS
+# ---------------------------------------------------------------------------
+PITCH_HOP_SEC = 0.05
+pitch_frame_sec = 128 / 44100.0
+pitch_step = max(1, int(round(PITCH_HOP_SEC / pitch_frame_sec)))
+pitch_arr = np.asarray(pitch_values, dtype=float)
+pitch_contour = []
+for i in range(0, len(pitch_arr), pitch_step):
+    window = pitch_arr[i:i + pitch_step]
+    voiced = window[window > 0]
+    # 視窗內一半以上的幀有旋律才算有音
+    if len(voiced) * 2 < len(window):
+        pitch_contour.append(None)
+    else:
+        pitch_contour.append(round(float(69 + 12 * np.log2(np.median(voiced) / 440.0)), 2))
+
+LOUDNESS_HOP_SEC = 0.5
+loudness_step = max(1, int(round(LOUDNESS_HOP_SEC / 0.1)))  # LoudnessEBUR128 預設 hopSize = 0.1 秒
+loudness_curve = [
+    round(float(max(v, -70.0)), 1) if np.isfinite(v) else -70.0
+    for v in np.asarray(shotterm, dtype=float)[::loudness_step]
+]
+
 with open(output_json, "w") as f:
     json.dump({
         "LUFS": round(float(integrated), 2),
+        "LoudnessRange": round(float(range_lu), 2),
         "BPM": round(float(bpm), 2),
         # 每一拍的時間點（秒），前端用來畫節拍時間軸
         "Beats": [round(float(t), 3) for t in beats],
         "Key": f"{key} {scale}",            # 例如 "C major"、"F# minor"
         "KeyStrength": round(float(key_strength), 3),
         "KeyProfile": KEY_PROFILE,
+        "PitchContour": {"hop": round(pitch_step * pitch_frame_sec, 5), "midi": pitch_contour},
+        "LoudnessCurve": {"hop": loudness_step * 0.1, "lufs": loudness_curve},
     }, f, ensure_ascii=False)
 
 

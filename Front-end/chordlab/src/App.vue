@@ -12,7 +12,9 @@ const isAnalyzing = ref(false)
 const progress = ref(0)
 const progressLabel = ref('')
 const analysisResult = ref(null)
-// const analysisResult = ref({"BTC":{"key":"C major","tuning":{"a4_hz":439.97,"tuning_offset_cents":-12.0,"status":"flat","status_text":"偏低 12.0 cents"},"timeline":[{"chord":"N","start":0.0,"dur":0.741},{"chord":"C","start":0.741,"dur":2.129},{"chord":"F","start":2.87,"dur":2.778},{"chord":"G","start":5.648,"dur":2.871},{"chord":"C","start":8.519,"dur":3.981}]},"Essentia":"{\"LUFS\": -24.84,\"BPM\": 79.57,\"Beats\": 16}"})
+// 每次分析完換一個 key，讓結果區（含播放器）整個重建
+const resultKey = ref(0)
+const FAILED_LABEL = '分析失敗，請重試'
 
 const PROGRESS_STEPS = [
   '正在解析音訊波形...',
@@ -25,11 +27,13 @@ const PROGRESS_STEPS = [
 function onFileSelected(file) {
   selectedFile.value = file
   analysisResult.value = null
+  progressLabel.value = ''
 }
 
 function onFileRemoved() {
   selectedFile.value = null
   analysisResult.value = null
+  progressLabel.value = ''
 }
 
 async function onAnalyze() {
@@ -54,12 +58,12 @@ async function onAnalyze() {
     progress.value = 100
     progressLabel.value = '分析完成！'
     await new Promise((r) => setTimeout(r, 300))
+    resultKey.value++
     analysisResult.value = result
-    console.log(result)
   } catch (err) {
     clearInterval(interval)
     console.error('Analysis failed:', err)
-    progressLabel.value = '分析失敗，請重試'
+    progressLabel.value = FAILED_LABEL
   } finally {
     isAnalyzing.value = false
   }
@@ -75,22 +79,28 @@ async function onAnalyze() {
         :file="selectedFile"
         @file-selected="onFileSelected"
         @file-removed="onFileRemoved"
-      />
-
-      <AnalyzeButton
-        :disabled="!selectedFile || isAnalyzing"
-        :is-analyzing="isAnalyzing"
-        @click="onAnalyze"
-      />
+      >
+        <AnalyzeButton
+          :disabled="!selectedFile || isAnalyzing"
+          :is-analyzing="isAnalyzing"
+          :done="!!analysisResult"
+          @click="onAnalyze"
+        />
+      </UploadZone>
 
       <ProgressBar
-        v-if="isAnalyzing"
+        v-if="isAnalyzing || progressLabel === FAILED_LABEL"
         :progress="progress"
         :label="progressLabel"
       />
 
-      <ResultsPanel v-if="analysisResult" :data="analysisResult" :audio-file="selectedFile" />
-      <!-- <ResultsPanel :data="analysisResult" /> -->
+      <ResultsPanel
+        v-if="analysisResult"
+        :key="resultKey"
+        :data="analysisResult"
+        :audio-file="selectedFile"
+        :file-name="selectedFile?.name ?? ''"
+      />
     </div>
   </div>
 </template>
@@ -98,11 +108,11 @@ async function onAnalyze() {
 <style scoped>
 .app-wrapper {
   min-height: 100vh;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem 1.25rem 4rem;
 }
 
 .app {
-  max-width: 780px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 </style>

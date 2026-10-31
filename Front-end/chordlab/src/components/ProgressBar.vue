@@ -12,7 +12,7 @@ defineProps({
 </script>
 
 <template>
-  <div class="progress-wrap">
+  <div class="progress-wrap" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100">
     <div class="track">
       <div class="fill" :style="{ width: progress + '%' }"></div>
     </div>
@@ -22,27 +22,26 @@ defineProps({
 
 <style scoped>
 .progress-wrap {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .track {
-  background: var(--surface);
+  background: var(--surface3);
   border-radius: 4px;
-  height: 4px;
+  height: 8px;
   overflow: hidden;
   margin-bottom: 0.5rem;
 }
 
 .fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  background: var(--accent);
   border-radius: 4px;
   transition: width 0.4s ease;
 }
 
 .label {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 0.9rem;
+  color: var(--text2);
 }
 </style>

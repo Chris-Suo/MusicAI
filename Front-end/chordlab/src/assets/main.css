@@ -6,25 +6,116 @@
   padding: 0;
 }
 
+/*
+ * 主題色票
+ * - 白天（light）／黑夜（dark）兩套，<html data-theme="..."> 切換（見 composables/useTheme.js）
+ * - 以投影幕清楚為目標：文字對比拉高、次要文字不會太淡、邊框用實線而不是半透明細線
+ * - 和聲功能四色（--f-T / --f-S / --f-D / --f-out）經過色盲模擬檢查，兩種主題各自調過明度；
+ *   顏色旁邊一定搭配文字（級數、和弦名、圖例），不單靠顏色辨識
+ */
 :root {
-  --bg: #0e0f12;
-  --surface: #171921;
-  --surface2: #1e2130;
-  --border: rgba(255, 255, 255, 0.07);
-  --accent: #7c6af5;
-  --accent2: #4ecfb3;
-  --accent3: #f5a623;
-  --text: #e8e9ee;
-  --muted: #6b6f84;
-  --success: #4ecfb3;
-  --danger: #ff6b6b;
+  color-scheme: light;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --bg: #eceef4;
+  --surface: #ffffff;
+  --surface2: #f3f4f8;
+  --surface3: #e4e7ef;
+  --border: #d2d6e1;
+  --border-strong: #9ea5b9;
+  --text: #0f111a;
+  --text2: #343a4e;
+  --muted: #565d72;
+  --grid: #e4e7ef;
+  --axis: #b8bfcf;
+
+  --accent: #4b36d6;
+  --accent-strong: #3a26bf;
+  --accent-soft: #e9e6fd;
+  --on-accent: #ffffff;
+
+  /* 和聲功能：主（1 3 6）、下屬（2 4）、屬（5 7）、調外 */
+  --f-T: #008300;
+  --f-S: #eda100;
+  --f-D: #e87ba4;
+  --f-out: #2a78d6;
+  --f-none: #9aa0b2;
+  /* 色塊內的文字：黃色上用深色字，其餘白字 */
+  --on-f-T: #ffffff;
+  --on-f-S: #0f111a;
+  --on-f-D: #0f111a;
+  --on-f-out: #ffffff;
+  --tint: 20%;
+
+  /* 單一資料系列 */
+  --c-pitch: #6250d6;
+  --c-tempo: #eb6834;
+  --c-loud: #2a78d6;
+  --c-loud-1: #86b6ef;
+  --c-loud-2: #3987e5;
+  --c-loud-3: #1c5cab;
+  --c-muted-series: #b4b9c8;
+
+  --playhead: #e34948;
+
+  /* 狀態（一定搭配圖示與文字） */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+
+  --shadow-sm: 0 1px 2px rgba(15, 17, 26, 0.06), 0 1px 3px rgba(15, 17, 26, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 17, 26, 0.14);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
 
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'Space Mono', monospace;
+  --font-sans: 'DM Sans', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f1118;
+  --surface: #1a1d27;
+  --surface2: #222633;
+  --surface3: #2c3140;
+  --border: #363b4d;
+  --border-strong: #5a6178;
+  --text: #f3f4f8;
+  --text2: #ccd0dc;
+  --muted: #a6acc0;
+  --grid: #2b2f3d;
+  --axis: #474d61;
+
+  --accent: #9d8cff;
+  --accent-strong: #b3a6ff;
+  --accent-soft: #2c2850;
+  --on-accent: #12101f;
+
+  --f-T: #008300;
+  --f-S: #c98500;
+  --f-D: #d55181;
+  --f-out: #3987e5;
+  --f-none: #6b7186;
+  --on-f-T: #ffffff;
+  --on-f-S: #ffffff;
+  --on-f-D: #ffffff;
+  --on-f-out: #ffffff;
+  --tint: 30%;
+
+  --c-pitch: #9085e9;
+  --c-tempo: #d95926;
+  --c-loud: #3987e5;
+  --c-loud-1: #184f95;
+  --c-loud-2: #2a78d6;
+  --c-loud-3: #86b6ef;
+  --c-muted-series: #4a5065;
+
+  --playhead: #e66767;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.55);
 }
 
 html,
@@ -33,21 +124,259 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 4px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
   background: var(--surface2);
-  border-radius: 2px;
+  border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 5px;
+  border: 2px solid var(--surface2);
+}
+
+/* ---------------------------------------------------------------------------
+ * 共用元件樣式
+ * ------------------------------------------------------------------------- */
+
+/* 卡片 */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.card-desc {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.sub-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text2);
+  margin: 1.25rem 0 0.6rem;
+}
+
+.note {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 分段切換按鈕 */
+.seg {
+  display: inline-flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg button {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.seg button:hover {
+  color: var(--text);
+  background: var(--surface3);
+}
+
+.seg button.on {
   background: var(--accent);
-  border-radius: 2px;
+  color: var(--on-accent);
+}
+
+/* 一般按鈕 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface3);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+/* 和聲功能色：.fn-T / .fn-S / .fn-D / .fn-out / .fn-none 設定 --fc，元件裡用 var(--fc) */
+.fn-T { --fc: var(--f-T); --on-fc: var(--on-f-T); }
+.fn-S { --fc: var(--f-S); --on-fc: var(--on-f-S); }
+.fn-D { --fc: var(--f-D); --on-fc: var(--on-f-D); }
+.fn-out { --fc: var(--f-out); --on-fc: var(--on-f-out); }
+.fn-none { --fc: var(--f-none); --on-fc: #ffffff; }
+
+/* 圖例 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 0.85rem;
+  color: var(--text2);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--fc, var(--accent));
+  flex-shrink: 0;
+}
+
+/* 圖表上的浮動提示 */
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-tip strong {
+  font-size: 0.95rem;
+}
+
+.chart-tip .muted {
+  color: var(--muted);
+}
+
+/* SVG 圖表共用 */
+.svg-grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.svg-axis-text {
+  fill: var(--muted);
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+/* 小標籤 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
