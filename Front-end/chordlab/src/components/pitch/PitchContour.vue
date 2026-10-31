@@ -1,34 +1,31 @@
 <script setup>
 /**
  * 旋律音高曲線（取代後端 matplotlib 畫的 PNG）
- * - 縱軸是音名（每一列一個半音，調內音的列加底色），橫軸是時間
- * - 上方的和弦色帶方便對照旋律跟和弦
- * - 滑鼠移上去看音名、音分偏差、Hz；點一下從那裡播放
+ * - 縱軸每一列一個半音，調內音的列加底色；左邊標音名、右邊標頻率（Hz）
+ *   整首時只標 C 與主音，放大後圖表變高、標出所有調內音
+ * - 可縮放（整首～8×），放大後左右捲動；滑鼠移上去看音名、音分偏差、Hz；點一下從那裡播放
  * - 後端還沒輸出 PitchContour 時，退回顯示 PNG
  */
 import { computed, ref } from 'vue'
 import TimeRuler from '@/components/common/TimeRuler.vue'
 import ZoomControl from '@/components/common/ZoomControl.vue'
 import PlayHead from '@/components/common/PlayHead.vue'
-import ChordStrip from '@/components/common/ChordStrip.vue'
 import { useTimeAxis } from '@/composables/useTimeAxis.js'
-import { usePlayback, useFollowPlayhead } from '@/composables/usePlayback.js'
+import { usePlayback } from '@/composables/usePlayback.js'
 import { percentile, fmtClock } from '@/utils/stats.js'
 import { midiToName, midiToHz, fmtHz, scalePitchClasses } from '@/utils/music.js'
 
 const props = defineProps({
   contour: { type: Object, default: null },
   imageSrc: { type: String, default: null },
-  timeline: { type: Array, default: () => [] },
-  chordInfo: { type: Map, required: true },
   keyInfo: { type: Object, default: null },
   total: { type: Number, required: true },
 })
 
 const AXIS_W = 56
+const HZ_W = 52
 const pb = usePlayback()
-const { scroller, zoomIdx, pxPerSec, contentWidth, x, ticks, setZoom, eventTime, tipStyle } = useTimeAxis(computed(() => props.total))
-useFollowPlayhead(scroller, x)
+const { plotEl, width, pxPerSec, x, ticks, zoomIdx, setZoom, eventTime, tipStyle } = useTimeAxis(computed(() => props.total))
 
 // ---------------------------------------------------------------------------
 // 縱軸範圍：主要音域上下各留 2 個半音，太遠的偵測誤差不畫
@@ -39,7 +36,7 @@ const yRange = computed(() => {
   const lo = Math.round(percentile(voiced, 0.01)) - 2
   const hi = Math.max(lo + 12, Math.round(percentile(voiced, 0.99)) + 2)
   const rows = hi - lo + 1
-  const rowH = Math.min(18, Math.max(9, Math.round(340 / rows)))
+  const rowH = Math.min(24, Math.max(9, Math.round((zoomIdx.value > 0 ? 480 : 340) / rows)))
   return { lo, hi, rows, rowH, height: rows * rowH }
 })
 
@@ -50,7 +47,9 @@ const inKey = computed(() => scalePitchClasses(props.keyInfo))
 const rows = computed(() => {
   const r = yRange.value
   if (!r) return []
-  const labelSet = r.rowH >= 14 ? null : r.rowH >= 9 ? [0, 4, 7, 9] : [0]
+  const tonic = props.keyInfo?.tonic
+  // 列夠高（放大後）就標所有調內音，否則只標 C 與主音
+  const labelAll = r.rowH >= 16 && inKey.value.size > 0
   const out = []
   for (let m = r.hi; m >= r.lo; m--) {
     const pc = ((m % 12) + 12) % 12
@@ -60,7 +59,8 @@ const rows = computed(() => {
       inKey: inKey.value.has(pc),
       tonic: props.keyInfo && pc === props.keyInfo.tonic,
       isC: pc === 0,
-      label: !labelSet || labelSet.includes(pc) ? midiToName(m, props.keyInfo) : '',
+      label: pc === 0 || pc === tonic || (labelAll && inKey.value.has(pc)) ? midiToName(m, props.keyInfo) : '',
+      hz: Math.round(midiToHz(m)),
     })
   }
   return out
@@ -120,7 +120,6 @@ function onClick(e) {
     <div class="card-head">
       <div>
         <h3 class="card-title">旋律音高曲線</h3>
-        <p class="card-desc">主旋律每一刻的音高；縱軸是音名，有底色的列是調內音。點一下就從那裡播放</p>
       </div>
       <ZoomControl v-if="contour && yRange" :zoom-idx="zoomIdx" @zoom="setZoom" />
     </div>
@@ -136,20 +135,17 @@ function onClick(e) {
                 v-for="r in rows.filter((r) => r.label)"
                 :key="r.m"
                 class="y-label"
-                :class="{ c: r.isC }"
+                :class="{ c: r.isC, tonic: r.tonic }"
                 :style="{ top: r.top + yRange.rowH / 2 + 'px' }"
               >{{ r.label }}</span>
             </div>
           </div>
 
-          <div ref="scroller" class="scroll">
-            <div class="inner" :style="{ width: contentWidth + 'px' }">
+          <div ref="plotEl" class="plot-wrap">
+            <div class="inner" :style="{ width: width + 'px' }">
               <TimeRuler :ticks="ticks" :px-per-sec="pxPerSec" />
-              <div class="chord-lane">
-                <ChordStrip :timeline="timeline" :chord-info="chordInfo" :total="total" :height="16" :px-per-sec="pxPerSec" />
-              </div>
               <svg
-                :width="contentWidth"
+                :width="width"
                 :height="yRange.height"
                 class="plot"
                 role="img"
@@ -163,7 +159,7 @@ function onClick(e) {
                   :key="'k' + r.m"
                   x="0"
                   :y="r.top"
-                  :width="contentWidth"
+                  :width="width"
                   :height="yRange.rowH"
                   :class="r.tonic ? 'row-tonic' : 'row-key'"
                 />
@@ -172,7 +168,7 @@ function onClick(e) {
                   v-for="r in rows.filter((r) => r.isC)"
                   :key="'c' + r.m"
                   x1="0"
-                  :x2="contentWidth"
+                  :x2="width"
                   :y1="r.top + yRange.rowH"
                   :y2="r.top + yRange.rowH"
                   class="c-line"
@@ -186,9 +182,23 @@ function onClick(e) {
               <PlayHead :px-per-sec="pxPerSec" />
             </div>
           </div>
+
+          <!-- 右側頻率軸（跟左側音名同一列） -->
+          <div class="y-axis hz-axis" :style="{ width: HZ_W + 'px' }" aria-hidden="true">
+            <div class="y-spacer hz-unit">Hz</div>
+            <div class="y-labels" :style="{ height: yRange.height + 'px' }">
+              <span
+                v-for="r in rows.filter((r) => r.label)"
+                :key="r.m"
+                class="y-label"
+                :class="{ tonic: r.tonic }"
+                :style="{ top: r.top + yRange.rowH / 2 + 'px' }"
+              >{{ r.hz }}</span>
+            </div>
+          </div>
         </div>
 
-        <div v-if="hover" class="chart-tip" :style="{ ...tipStyle(hover.px, AXIS_W), top: '48px' }">
+        <div v-if="hover" class="chart-tip" :style="{ ...tipStyle(hover.px, AXIS_W), top: '30px' }">
           <template v-if="hover.v !== null">
             <strong>{{ hover.name }}<span class="cents">{{ hover.cents > 0 ? '+' : '' }}{{ hover.cents }} 音分</span></strong>
             <span>{{ hover.hz }}</span>
@@ -198,11 +208,9 @@ function onClick(e) {
         </div>
       </div>
 
-      <div class="legend foot">
-        <span><i class="swatch line-sw"></i>旋律音高</span>
-        <span><i class="swatch key-sw"></i>調內音{{ keyInfo ? `（${keyInfo.name}）` : '' }}</span>
+      <div v-if="keyInfo" class="legend foot">
+        <span><i class="swatch key-sw"></i>調內音</span>
         <span><i class="swatch tonic-sw"></i>主音</span>
-        <span class="muted">間奏、休止等沒有旋律的地方不畫線</span>
       </div>
     </template>
 
@@ -230,9 +238,9 @@ function onClick(e) {
   border-right: 1px solid var(--axis);
 }
 
-/* 對齊時間刻度（22px）＋和弦色帶（16px + 間距） */
+/* 對齊時間刻度 */
 .y-spacer {
-  height: 48px;
+  height: 22px;
 }
 
 .y-labels {
@@ -250,26 +258,45 @@ function onClick(e) {
 }
 
 .y-label.c {
+  color: var(--text2);
+}
+
+.y-label.tonic {
   color: var(--text);
   font-weight: 700;
 }
 
-.scroll {
+.plot-wrap {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 6px;
 }
 
 .inner {
   position: relative;
-  /* 最右邊的刻度、小節號超出內容寬度時裁掉，避免整首（1×）時出現捲軸 */
+  /* 最右邊的刻度文字超出內容寬度時裁掉，避免整首時出現捲軸 */
   overflow-x: clip;
 }
 
-.chord-lane {
-  padding: 5px 0;
+.hz-axis {
+  border-right: none;
+  border-left: 1px solid var(--axis);
+}
+
+.hz-axis .y-label {
+  right: auto;
+  left: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hz-unit {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .plot {
@@ -322,11 +349,6 @@ function onClick(e) {
   margin-top: 0.75rem;
 }
 
-.line-sw {
-  height: 3px;
-  background: var(--c-pitch);
-}
-
 .key-sw {
   background: var(--surface2);
   border: 1px solid var(--border-strong);
@@ -335,10 +357,6 @@ function onClick(e) {
 .tonic-sw {
   background: var(--accent-soft);
   border: 1px solid var(--accent);
-}
-
-.muted {
-  color: var(--muted);
 }
 
 .fallback-note {

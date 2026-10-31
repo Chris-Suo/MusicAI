@@ -217,6 +217,24 @@ function formatRoman(step, chord) {
   return acc + base + suffix
 }
 
+/**
+ * 簡譜級數（以大調為基準，例如 '6'、'b7'、'3M'、'3:maj'）→ 這個調的羅馬數字
+ * 小調以實際主音計算：D minor 的 '6'（Dm）→ 'i'、'4'（Bb）→ 'VI'
+ * 沒註明大小三的級數用順階的和弦家族；變化音級數預設大三
+ */
+export function numberToRoman(token, key) {
+  const m = String(token).match(/^([b#]?)([1-7]):?(maj|min|dim|aug|M|m|°|\+)?/)
+  if (!m || !key) return String(token)
+  const base = numToSemitone(m[2])
+  const semi = (base + (m[1] === 'b' ? 11 : m[1] === '#' ? 1 : 0)) % 12
+  const family = { M: 'maj', m: 'min', '°': 'dim', '+': 'aug' }[m[3]] ?? m[3] ?? (m[1] ? 'maj' : MAJOR_DEGREES[base].family)
+  // 簡譜的 1 在小調是主音上方小三度
+  const fromTonic = (semi + (key.mode === 'minor' ? 3 : 0)) % 12
+  let step = ROMAN_STEPS[key.mode][fromTonic]
+  if (key.mode === 'minor' && fromTonic === 11 && family === 'dim') step = 'VII'
+  return formatRoman(step, { family, quality: '' })
+}
+
 function numToSemitone(num) {
   return Number(Object.keys(MAJOR_DEGREES).find((k) => MAJOR_DEGREES[k].num === num))
 }

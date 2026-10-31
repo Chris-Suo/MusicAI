@@ -18,8 +18,6 @@ export const FUNCTION_NAMES = {
   none: '無和弦',
 }
 
-export const FUNCTION_DEGREES = { T: '1 3 6', S: '2 4', D: '5 7' }
-
 // ---------------------------------------------------------------------------
 // 音名拼寫
 // ---------------------------------------------------------------------------
@@ -95,14 +93,6 @@ export function scaleDegreeOf(pc, key) {
   const majorRef = key.mode === 'major' ? key.tonic : (key.tonic + 3) % 12
   const map = { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' }
   return map[(pc - majorRef + 12) % 12] ?? null
-}
-
-/** 關係大／小調 */
-export function relativeKeyName(key) {
-  if (!key) return null
-  return key.mode === 'major'
-    ? `${noteName(key.tonic + 9, key)} minor`
-    : `${noteName(key.tonic + 3, key)} major`
 }
 
 // ---------------------------------------------------------------------------
@@ -199,19 +189,6 @@ export function buildChordInfo(timeline, key) {
     })
   }
   return map
-}
-
-/** 調內的七個順階和弦（以大調簡譜 1～7 排列；小調用關係大調） */
-export function diatonicChords(key) {
-  if (!key) return []
-  const ref = key.mode === 'major' ? key : { tonic: (key.tonic + 3) % 12, mode: 'major', name: `${noteName(key.tonic + 3, key)} major` }
-  const names = scaleNotes(ref)
-  const qualities = ['', 'm', 'm', '', '', 'm', '°']
-  return names.map((n, i) => ({
-    number: String(i + 1),
-    name: n + qualities[i],
-    fn: FUNCTION_GROUP[String(i + 1)],
-  }))
 }
 
 // ---------------------------------------------------------------------------

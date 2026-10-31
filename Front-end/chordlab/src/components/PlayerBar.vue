@@ -1,31 +1,31 @@
 <script setup>
 /**
- * 共用播放器（固定在畫面上方）
- * - 色帶是整首歌的和弦功能，可點擊或拖曳跳轉
- * - 即時顯示：目前和弦（級數）、第幾小節第幾拍、旋律音高
+ * 播放器（固定在畫面上方）
+ * - 檔名、播放／暫停、進度條（可點擊或拖曳跳轉）、正在播放的和弦、換檔案
  * - 快捷鍵：空白鍵播放／暫停、← → 前後 5 秒
  */
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import AppIcon from '@/components/common/AppIcon.vue'
-import ChordStrip from '@/components/common/ChordStrip.vue'
+import FilePickButton from '@/components/common/FilePickButton.vue'
 import { usePlayback } from '@/composables/usePlayback.js'
 import { segmentAt, fmtClock } from '@/utils/stats.js'
-import { midiToName, midiToHz, fmtHz } from '@/utils/music.js'
 
 const props = defineProps({
+  fileName: { type: String, default: '' },
   total: { type: Number, required: true },
   timeline: { type: Array, default: () => [] },
   chordInfo: { type: Map, required: true },
-  contour: { type: Object, default: null },
-  keyInfo: { type: Object, default: null },
-  hasBeats: { type: Boolean, default: false },
 })
+
+const emit = defineEmits(['pick'])
 
 const pb = usePlayback()
 
 const progress = computed(() => Math.min(100, (pb.current.value / props.total) * 100))
 
+// 開始播放（或跳轉）後才顯示目前的和弦
 const nowChord = computed(() => {
+  if (!pb.active.value) return null
   const i = segmentAt(props.timeline, pb.current.value)
   const label = i >= 0 ? props.timeline[i].chord : null
   if (!label) return null
@@ -34,16 +34,8 @@ const nowChord = computed(() => {
   return { name: info?.name ?? label, fn: info?.fn ?? 'none', degree: info?.degree?.label ?? null }
 })
 
-const nowNote = computed(() => {
-  const c = props.contour
-  if (!c) return null
-  const v = c.midi[Math.floor(pb.current.value / c.hop)]
-  if (v === null || v === undefined) return { name: '—', hz: '' }
-  return { name: midiToName(v, props.keyInfo), hz: fmtHz(midiToHz(v)) }
-})
-
 // ---------------------------------------------------------------------------
-// 色帶拖曳跳轉
+// 進度條拖曳跳轉
 // ---------------------------------------------------------------------------
 const seekEl = ref(null)
 let dragging = false
@@ -105,70 +97,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :title="(pb.playing.value ? '暫停' : '播放') + '（空白鍵）'"
       @click="pb.toggle()"
     >
-      <AppIcon :name="pb.playing.value ? 'pause' : 'play'" :size="24" />
+      <AppIcon :name="pb.playing.value ? 'pause' : 'play'" :size="22" />
     </button>
 
     <div class="main">
-      <div class="seek-row">
-        <div
-          ref="seekEl"
-          class="seek"
-          role="slider"
-          tabindex="0"
-          aria-label="播放位置"
-          :aria-valuemin="0"
-          :aria-valuemax="Math.round(total)"
-          :aria-valuenow="Math.round(pb.current.value)"
-          :aria-valuetext="fmtClock(pb.current.value)"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerUp"
-          @keydown="onSliderKey"
-        >
-          <ChordStrip :timeline="timeline" :chord-info="chordInfo" :total="total" :height="14" />
-          <div class="knob" :style="{ left: progress + '%' }"></div>
-        </div>
+      <div class="info">
+        <span class="file-name" :title="fileName">{{ fileName }}</span>
+        <span v-if="nowChord" class="chord" aria-live="off">
+          <i class="swatch" :class="'fn-' + nowChord.fn"></i>
+          <strong>{{ nowChord.name }}</strong>
+          <span v-if="nowChord.degree" class="deg">{{ nowChord.degree }}</span>
+        </span>
         <span class="clock">{{ fmtClock(pb.current.value) }} <span class="muted">/ {{ fmtClock(total) }}</span></span>
       </div>
 
-      <div class="now">
-        <span class="now-item">
-          <span class="now-label">和弦</span>
-          <template v-if="nowChord">
-            <span class="swatch" :class="'fn-' + nowChord.fn"></span>
-            <strong class="now-val">{{ nowChord.name }}</strong>
-            <span v-if="nowChord.degree" class="deg">{{ nowChord.degree }}</span>
-          </template>
-          <strong v-else class="now-val">—</strong>
-        </span>
-
-        <span v-if="hasBeats" class="now-item">
-          <span class="now-label">小節</span>
-          <strong class="now-val">{{ pb.barIndex.value >= 0 ? pb.barIndex.value + 1 : '—' }}</strong>
-          <span class="pulse" aria-hidden="true">
-            <span
-              v-for="n in pb.beatsPerBar"
-              :key="n"
-              class="dot"
-              :class="{ on: pb.beatInBar.value === n - 1, down: n === 1 }"
-            ></span>
-          </span>
-        </span>
-
-        <span v-if="nowNote" class="now-item">
-          <span class="now-label">旋律</span>
-          <strong class="now-val">{{ nowNote.name }}</strong>
-          <span class="muted">{{ nowNote.hz }}</span>
-        </span>
-
-        <label v-if="hasBeats && pb.hasAudio.value" class="switch">
-          <input v-model="pb.metronome.value" type="checkbox" />
-          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-          節拍器
-        </label>
+      <div
+        ref="seekEl"
+        class="seek"
+        role="slider"
+        tabindex="0"
+        aria-label="播放位置"
+        :aria-valuemin="0"
+        :aria-valuemax="Math.round(total)"
+        :aria-valuenow="Math.round(pb.current.value)"
+        :aria-valuetext="fmtClock(pb.current.value)"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerUp"
+        @keydown="onSliderKey"
+      >
+        <div class="track"><div class="fill" :style="{ width: progress + '%' }"></div></div>
+        <div class="knob" :style="{ left: progress + '%' }"></div>
       </div>
     </div>
+
+    <FilePickButton class="change" @pick="emit('pick', $event)" />
   </div>
 </template>
 
@@ -182,16 +146,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: var(--radius-lg);
   padding: 0.75rem 1.25rem;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .play {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   border: none;
   background: var(--accent);
@@ -218,37 +182,45 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
-.seek-row {
+.info {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
+  min-height: 28px;
 }
 
-.seek {
-  position: relative;
+.file-name {
   flex: 1;
-  padding: 6px 0;
-  cursor: pointer;
-  touch-action: none;
+  min-width: 0;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.knob {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  margin-left: -2px;
-  background: var(--playhead);
-  border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--surface);
-  pointer-events: none;
+.chord {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.deg {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 7px;
 }
 
 .clock {
-  font-size: 1rem;
+  margin-left: auto;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -259,122 +231,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-weight: 400;
 }
 
-.now {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 24px;
-}
-
-.now-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-}
-
-.now-label {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.now-val {
-  font-size: 1.15rem;
-  min-width: 2.5ch;
-}
-
-.deg {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 0.9rem;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0 8px;
-}
-
-.pulse {
-  display: inline-flex;
-  gap: 5px;
-}
-
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--surface3);
-  border: 2px solid var(--border-strong);
-  transition: background 0.06s, transform 0.06s;
-}
-
-.dot.down {
-  border-color: var(--accent);
-}
-
-.dot.on {
-  background: var(--text);
-  border-color: var(--text);
-  transform: scale(1.2);
-}
-
-.dot.on.down {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-/* 開關 */
-.switch {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: var(--text2);
+.seek {
+  position: relative;
+  padding: 8px 0;
   cursor: pointer;
-  user-select: none;
-}
-
-.switch input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+  touch-action: none;
 }
 
 .track {
-  width: 40px;
-  height: 22px;
-  border-radius: 11px;
+  height: 6px;
+  border-radius: 3px;
   background: var(--surface3);
-  border: 1px solid var(--border-strong);
-  position: relative;
-  transition: background 0.15s;
+  overflow: hidden;
 }
 
-.thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s;
-}
-
-.switch input:checked + .track {
+.fill {
+  height: 100%;
   background: var(--accent);
-  border-color: var(--accent);
 }
 
-.switch input:checked + .track .thumb {
-  transform: translateX(18px);
-}
-
-.switch input:focus-visible + .track {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
+.knob {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--surface);
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {
@@ -388,12 +273,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     height: 44px;
   }
 
-  .now {
-    gap: 4px 14px;
+  /* 手機寬度放不下檔名，留和弦和時間 */
+  .file-name {
+    display: none;
   }
 
-  .switch {
-    margin-left: 0;
+  .info {
+    gap: 10px;
+  }
+
+  .chord {
+    font-size: 0.95rem;
+  }
+
+  .clock {
+    font-size: 0.875rem;
   }
 }
 </style>

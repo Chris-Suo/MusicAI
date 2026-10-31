@@ -75,7 +75,7 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
     <div class="card-head">
       <div>
         <h3 class="card-title">BPM 占比</h3>
-        <p class="card-desc">把每一拍換算成 BPM，看整首歌的速度落在哪些範圍（依時間計算）</p>
+        <p class="card-desc">每一拍換算成 BPM，依時間計算</p>
       </div>
     </div>
 

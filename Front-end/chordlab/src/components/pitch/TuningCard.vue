@@ -53,7 +53,7 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
     <div class="card-head">
       <div>
         <h3 class="card-title">調音基準</h3>
-        <p class="card-desc">這首歌的 A4（中央 C 上面的 La）實際是多少 Hz；標準是 440 Hz</p>
+        <p class="card-desc">標準是 A4 = 440 Hz</p>
       </div>
     </div>
 
@@ -65,7 +65,7 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
           <AppIcon :name="status.icon" :size="18" />{{ status.text }}
         </span>
       </div>
-      <p class="hint">與 440 Hz 相差 <strong>{{ fmtCents(cents) }} 音分</strong>・{{ status.hint }}</p>
+      <p class="hint" title="1 個半音 = 100 音分">{{ fmtCents(cents) }} 音分・{{ status.hint }}</p>
 
       <svg :viewBox="`0 0 ${W} ${H}`" class="gauge" role="img" :aria-label="`偏差 ${fmtCents(cents)} 音分，${status.text}`">
         <rect
@@ -87,12 +87,6 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
           <path :d="`M -8 ${BAR_Y - 16} L 8 ${BAR_Y - 16} L 0 ${BAR_Y - 5} Z`" class="needle-head" />
         </g>
       </svg>
-      <div class="legend zone-legend">
-        <span class="good"><i class="swatch zone-sw"></i>標準（±5 以內）</span>
-        <span class="warning"><i class="swatch zone-sw"></i>輕微偏移（5～20）</span>
-        <span class="serious"><i class="swatch zone-sw"></i>明顯偏移（20 以上）</span>
-      </div>
-      <p class="note unit-note">單位：音分（cent）。1 個半音 = 100 音分。</p>
     </template>
   </div>
 </template>
@@ -161,19 +155,6 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
 
 .zone {
   fill: color-mix(in srgb, var(--sc) 30%, var(--surface));
-}
-
-.zone-sw {
-  background: color-mix(in srgb, var(--sc) 30%, var(--surface));
-  border: 2px solid var(--sc);
-}
-
-.zone-legend {
-  font-size: 0.85rem;
-}
-
-.unit-note {
-  margin-top: 0.4rem;
 }
 
 .needle {

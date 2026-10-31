@@ -2,7 +2,7 @@
 /**
  * 音量（響度）
  * - 整體響度（LUFS）放在參考尺上：廣播 −23、串流平台 −14、大聲的流行母帶約 −9
- * - 有 LoudnessCurve 時：響度隨時間變化的曲線＋大聲／一般／小聲段落占比
+ * - 有 LoudnessCurve 時：響度隨時間變化的曲線
  */
 import { computed, ref } from 'vue'
 import PlayHead from '@/components/common/PlayHead.vue'
@@ -13,8 +13,8 @@ import { loudnessLevel, STREAMING_LUFS } from '@/utils/music.js'
 import { fmtClock } from '@/utils/stats.js'
 
 const props = defineProps({
-  lufs: { type: Number, default: null },
-  loudnessRange: { type: Number, default: null },
+  // 沒有響度資料時 ResultsPanel 不顯示這張卡
+  lufs: { type: Number, required: true },
   curve: { type: Object, default: null },
   total: { type: Number, required: true },
 })
@@ -33,27 +33,13 @@ const REFS = [
 const S_TICKS = [-36, -30, -24, -18, -12, -6]
 const sx = (v) => ((Math.min(S_MAX, Math.max(S_MIN, v)) - S_MIN) / (S_MAX - S_MIN)) * W
 
-const ready = computed(() => Number.isFinite(props.lufs))
 const level = computed(() => loudnessLevel(props.lufs))
-
-const compare = computed(() => {
-  const d = props.lufs - STREAMING_LUFS
-  if (Math.abs(d) < 1) return '跟串流平台常用的 −14 LUFS 差不多'
-  return `比串流平台常用的 −14 LUFS ${d > 0 ? '大聲' : '小聲'} ${Math.abs(d).toFixed(1)} dB`
-})
-
-const lra = computed(() => {
-  const v = props.loudnessRange
-  if (!Number.isFinite(v)) return null
-  const text = v < 5 ? '小：大聲小聲差不多，聽起來很「滿」' : v <= 10 ? '中等：流行音樂常見' : '大：大聲小聲對比明顯，像古典或電影配樂'
-  return { v, text }
-})
 
 // ---------------------------------------------------------------------------
 // 響度曲線
 // ---------------------------------------------------------------------------
 const pb = usePlayback()
-const { scroller, pxPerSec, contentWidth, x, ticks, eventTime, tipStyle } = useTimeAxis(computed(() => props.total))
+const { plotEl, width, pxPerSec, x, ticks, eventTime, tipStyle } = useTimeAxis(computed(() => props.total))
 
 const PLOT_H = 150
 const PAD = 8
@@ -92,28 +78,6 @@ const curvePath = computed(() => {
   return { line, area }
 })
 
-// 大聲／一般／小聲段落：跟整體響度相比
-const QUIET = -4
-const LOUD = 2
-const shares = computed(() => {
-  const vals = props.curve?.lufs ?? []
-  if (!vals.length || !ready.value) return null
-  let q = 0
-  let n = 0
-  let l = 0
-  for (const v of vals) {
-    if (v < props.lufs + QUIET) q++
-    else if (v > props.lufs + LOUD) l++
-    else n++
-  }
-  const total = vals.length
-  return [
-    { key: 'quiet', name: '較小聲', hint: `低於整體 ${-QUIET} dB 以上`, share: q / total, cls: 'lv1' },
-    { key: 'normal', name: '一般', hint: '接近整體響度', share: n / total, cls: 'lv2' },
-    { key: 'loud', name: '較大聲', hint: `高於整體 ${LOUD} dB 以上`, share: l / total, cls: 'lv3' },
-  ].filter((s) => s.share > 0)
-})
-
 const hover = ref(null)
 function onMove(e) {
   const { px, t } = eventTime(e)
@@ -122,7 +86,6 @@ function onMove(e) {
   hover.value = { px, t, v }
 }
 
-const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
 const fmtLufs = (v) => (v <= -60 ? '靜音' : `${v.toFixed(1)} LUFS`)
 </script>
 
@@ -130,94 +93,74 @@ const fmtLufs = (v) => (v <= -60 ? '靜音' : `${v.toFixed(1)} LUFS`)
   <div class="card">
     <div class="card-head">
       <div>
-        <h3 class="card-title">音量（響度）</h3>
-        <p class="card-desc">LUFS 是依人耳感受計算的響度，越接近 0 越大聲；每差 6 dB 聽起來大約差一倍</p>
+        <h3 class="card-title">音量</h3>
+        <p class="card-desc">LUFS 是依人耳感受計算的響度，越接近 0 越大聲</p>
       </div>
     </div>
 
-    <div v-if="!ready" class="note">沒有響度資料</div>
-    <template v-else>
-      <div class="top">
-        <div class="summary">
-          <div class="hero">
-            <span class="val">{{ lufs.toFixed(1) }}<span class="unit">LUFS</span></span>
-            <span class="level">{{ level }}</span>
-          </div>
-          <p class="hint">{{ compare }}</p>
-          <p v-if="lra" class="hint">
-            動態範圍 <strong>{{ lra.v.toFixed(1) }} LU</strong>・{{ lra.text }}
-          </p>
-        </div>
-
-        <svg :viewBox="`0 -30 ${W} 92`" class="scale" role="img" :aria-label="`整體響度 ${lufs.toFixed(1)} LUFS`">
-          <rect x="0" y="12" :width="W" height="14" rx="7" class="scale-track" />
-          <rect x="0" y="12" :width="sx(lufs)" height="14" rx="7" class="scale-fill" />
-          <g v-for="r in REFS" :key="r.v">
-            <line :x1="sx(r.v)" :x2="sx(r.v)" y1="6" y2="32" class="ref-line" />
-            <text :x="sx(r.v)" y="0" text-anchor="middle" class="ref-text">{{ r.label }} {{ r.v }}</text>
-          </g>
-          <text v-for="t in S_TICKS" :key="t" :x="sx(t)" y="52" text-anchor="middle" class="svg-axis-text">{{ t }}</text>
-          <g :transform="`translate(${sx(lufs)}, 0)`">
-            <circle cx="0" cy="19" r="9" class="knob" />
-          </g>
-          <text :x="0" y="-18" class="end-text">小聲</text>
-          <text :x="W" y="-18" text-anchor="end" class="end-text">大聲</text>
-        </svg>
+    <div class="top">
+      <div class="hero">
+        <span class="val">{{ lufs.toFixed(1) }}<span class="unit">LUFS</span></span>
+        <span class="level">{{ level }}</span>
       </div>
 
-      <template v-if="curve && yRange">
-        <div class="sub-title">響度變化</div>
-        <div class="chart-wrap">
-          <div class="layout">
-            <div class="y-axis" aria-hidden="true">
-              <div style="height: 22px"></div>
-              <div class="y-ticks" :style="{ height: PLOT_H + 'px' }">
-                <span v-for="t in yTicks" :key="t" :style="{ top: y(t) + 'px' }">{{ t }}</span>
-              </div>
-            </div>
-            <div ref="scroller" class="scroll">
-              <div class="inner" :style="{ width: contentWidth + 'px' }">
-                <TimeRuler :ticks="ticks" :px-per-sec="pxPerSec" />
-                <svg
-                  :width="contentWidth"
-                  :height="PLOT_H"
-                  class="plot"
-                  role="img"
-                  aria-label="響度隨時間變化"
-                  @mousemove="onMove"
-                  @mouseleave="hover = null"
-                  @click="pb?.seek(eventTime($event).t)"
-                >
-                  <line v-for="t in yTicks" :key="'g' + t" x1="0" :x2="contentWidth" :y1="y(t)" :y2="y(t)" class="svg-grid" />
-                  <path :d="curvePath.area" class="area" />
-                  <path :d="curvePath.line" class="line" />
-                  <line x1="0" :x2="contentWidth" :y1="y(lufs)" :y2="y(lufs)" class="overall" />
-                  <text :x="6" :y="y(lufs) - 6" class="overall-text">整體 {{ lufs.toFixed(1) }}</text>
-                  <line v-if="hover" :x1="hover.px" :x2="hover.px" y1="0" :y2="PLOT_H" class="cross" />
-                </svg>
-                <PlayHead :px-per-sec="pxPerSec" />
-              </div>
-            </div>
-          </div>
-          <div v-if="hover" class="chart-tip" :style="{ ...tipStyle(hover.px, 48), top: '30px' }">
-            <strong>{{ fmtLufs(hover.v) }}</strong>
-            <span class="muted">{{ fmtClock(hover.t) }}・點一下從這裡播放</span>
-          </div>
-        </div>
-      </template>
+      <svg :viewBox="`0 -30 ${W} 92`" class="scale" role="img" :aria-label="`整體響度 ${lufs.toFixed(1)} LUFS`">
+        <rect x="0" y="12" :width="W" height="14" rx="7" class="scale-track" />
+        <rect x="0" y="12" :width="sx(lufs)" height="14" rx="7" class="scale-fill" />
+        <g v-for="r in REFS" :key="r.v">
+          <line :x1="sx(r.v)" :x2="sx(r.v)" y1="6" y2="32" class="ref-line" />
+          <text :x="sx(r.v)" y="0" text-anchor="middle" class="ref-text">{{ r.label }} {{ r.v }}</text>
+        </g>
+        <text v-for="t in S_TICKS" :key="t" :x="sx(t)" y="52" text-anchor="middle" class="svg-axis-text">{{ t }}</text>
+        <g :transform="`translate(${sx(lufs)}, 0)`">
+          <circle cx="0" cy="19" r="9" class="knob" />
+        </g>
+        <text :x="0" y="-18" class="end-text">小聲</text>
+        <text :x="W" y="-18" text-anchor="end" class="end-text">大聲</text>
+      </svg>
+    </div>
 
-      <template v-if="shares">
-        <div class="sub-title">大聲／小聲段落占比 <span class="note">跟整體響度相比</span></div>
-        <div class="stack" role="img" :aria-label="shares.map((s) => `${s.name} ${fmtPct(s.share)}`).join('，')">
-          <span v-for="s in shares" :key="s.key" class="block" :class="s.cls" :style="{ flexGrow: s.share }" :title="`${s.name} ${fmtPct(s.share)}`"></span>
+    <template v-if="curve && yRange">
+      <div class="sub-title">響度變化</div>
+      <div class="chart-wrap">
+        <div class="layout">
+          <div class="y-axis" aria-hidden="true">
+            <div style="height: 22px"></div>
+            <div class="y-ticks" :style="{ height: PLOT_H + 'px' }">
+              <span v-for="t in yTicks" :key="t" :style="{ top: y(t) + 'px' }">{{ t }}</span>
+            </div>
+          </div>
+          <div ref="plotEl" class="plot-wrap">
+            <div class="inner">
+              <TimeRuler :ticks="ticks" :px-per-sec="pxPerSec" />
+              <svg
+                :width="width"
+                :height="PLOT_H"
+                class="plot"
+                role="img"
+                aria-label="響度隨時間變化"
+                @mousemove="onMove"
+                @mouseleave="hover = null"
+                @click="pb?.seek(eventTime($event).t)"
+              >
+                <line v-for="t in yTicks" :key="'g' + t" x1="0" :x2="width" :y1="y(t)" :y2="y(t)" class="svg-grid" />
+                <path :d="curvePath.area" class="area" />
+                <path :d="curvePath.line" class="line" />
+                <line x1="0" :x2="width" :y1="y(lufs)" :y2="y(lufs)" class="overall" />
+                <text :x="6" :y="y(lufs) - 6" class="overall-text">整體 {{ lufs.toFixed(1) }}</text>
+                <line v-if="hover" :x1="hover.px" :x2="hover.px" y1="0" :y2="PLOT_H" class="cross" />
+              </svg>
+              <PlayHead :px-per-sec="pxPerSec" />
+            </div>
+          </div>
         </div>
-        <div class="legend share-legend">
-          <span v-for="s in shares" :key="s.key">
-            <i class="swatch" :class="s.cls"></i>{{ s.name }}<span class="muted">（{{ s.hint }}）</span><strong>{{ fmtPct(s.share) }}</strong>
-          </span>
+        <div v-if="hover" class="chart-tip" :style="{ ...tipStyle(hover.px, 48), top: '30px' }">
+          <strong>{{ fmtLufs(hover.v) }}</strong>
+          <span class="muted">{{ fmtClock(hover.t) }}・點一下從這裡播放</span>
         </div>
-      </template>
+      </div>
     </template>
+
   </div>
 </template>
 
@@ -252,12 +195,6 @@ const fmtLufs = (v) => (v <= -60 ? '靜音' : `${v.toFixed(1)} LUFS`)
 .level {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--text2);
-}
-
-.hint {
-  margin-top: 0.3rem;
-  font-size: 0.95rem;
   color: var(--text2);
 }
 
@@ -327,7 +264,7 @@ const fmtLufs = (v) => (v <= -60 ? '靜音' : `${v.toFixed(1)} LUFS`)
   font-variant-numeric: tabular-nums;
 }
 
-.scroll {
+.plot-wrap {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -377,34 +314,4 @@ const fmtLufs = (v) => (v <= -60 ? '靜音' : `${v.toFixed(1)} LUFS`)
   color: var(--muted);
 }
 
-/* 段落占比 */
-.stack {
-  display: flex;
-  gap: 2px;
-  height: 28px;
-}
-
-.block {
-  flex-basis: 0;
-  min-width: 3px;
-  border-radius: 4px;
-}
-
-.lv1 {
-  background: var(--c-loud-1);
-}
-.lv2 {
-  background: var(--c-loud-2);
-}
-.lv3 {
-  background: var(--c-loud-3);
-}
-
-.share-legend {
-  margin-top: 0.6rem;
-}
-
-.share-legend strong {
-  margin-left: 6px;
-}
 </style>

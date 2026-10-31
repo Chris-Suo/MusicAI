@@ -52,7 +52,7 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
     <div class="card-head">
       <div>
         <h3 class="card-title">音高占比</h3>
-        <p class="card-desc">依主旋律出現的時間計算：哪些音名用得最多、旋律大多落在哪個頻率範圍</p>
+        <p class="card-desc">依主旋律出現的時間計算</p>
       </div>
     </div>
 
@@ -80,17 +80,13 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
               </div>
             </div>
             <div class="x-labels">
-              <span v-for="c in columns" :key="'x' + c.pc" class="x-label" :class="{ tonic: c.tonic }">
-                <span class="x-name">{{ c.name }}</span>
-                <span class="x-deg">{{ c.degree ?? '' }}</span>
-              </span>
+              <span v-for="c in columns" :key="'x' + c.pc" class="x-label" :class="{ tonic: c.tonic }">{{ c.name }}</span>
             </div>
           </div>
         </div>
         <div class="legend foot">
           <span><i class="swatch in-sw"></i>調內音</span>
           <span><i class="swatch out-sw"></i>調外音</span>
-          <span class="muted">下方數字是簡譜級數</span>
         </div>
         <table class="visually-hidden">
           <caption>音名占比</caption>
@@ -101,7 +97,6 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
       <!-- 音區占比（頻率） -->
       <section>
         <div class="sub-title first">音區占比（頻率）</div>
-        <p class="headline">中央 C（C4）= 261.6 Hz，每高一個八度頻率加倍</p>
         <div class="oct-rows" role="table" aria-label="音區占比">
           <div v-for="r in octaveRows" :key="r.octave" class="oct" role="row">
             <span class="o-name" role="cell">
@@ -220,30 +215,17 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
 }
 
 .x-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.25;
-}
-
-.x-name {
+  text-align: center;
   font-size: 13px;
   font-weight: 500;
   color: var(--text2);
 }
 
-.x-label.tonic .x-name {
+.x-label.tonic {
   color: var(--text);
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-.x-deg {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-  min-height: 1em;
 }
 
 .foot {
@@ -256,10 +238,6 @@ const fmtPct = (v) => `${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}%`
 
 .out-sw {
   background: var(--c-muted-series);
-}
-
-.muted {
-  color: var(--muted);
 }
 
 /* 音區長條 */

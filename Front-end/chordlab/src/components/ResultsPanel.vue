@@ -1,18 +1,16 @@
 <script setup>
 /**
  * 分析結果
- * - 上方：歌曲總覽（四個重點數字）＋ 共用播放器（固定在畫面上方）
- * - 下方三個分頁：和弦調性／音高頻率／速度節拍
+ * - 上方：共用播放器（固定在畫面上方，含換檔案）
+ * - 下方三個分頁：和弦調性／音高頻率／速度節拍，分頁上顯示各自的重點數字
  *   調音基準放在「音高頻率」（它是頻率的基準），調性情緒與情境放在「和弦調性」，
  *   音量（響度）放在「速度節拍」（速度和力度都是樂曲的表情要素）
  */
 import { computed, ref, provide, toRef, watch, onBeforeUnmount } from 'vue'
 import AppIcon from '@/components/common/AppIcon.vue'
-import SongOverview from '@/components/SongOverview.vue'
 import PlayerBar from '@/components/PlayerBar.vue'
 import KeyCard from '@/components/harmony/KeyCard.vue'
 import ChordShare from '@/components/harmony/ChordShare.vue'
-import ChordTimeline from '@/components/harmony/ChordTimeline.vue'
 import KeyAnalysis from '@/components/harmony/KeyAnalysis.vue'
 import TuningCard from '@/components/pitch/TuningCard.vue'
 import PitchRange from '@/components/pitch/PitchRange.vue'
@@ -44,6 +42,8 @@ const props = defineProps({
   },
 })
 
+defineEmits(['file-selected'])
+
 const BEATS_PER_BAR = 4
 
 // ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ const keyInfo = computed(() => conventionalKey(parseKey(essentia.value.Key) ?? e
 const keyConfidence = computed(() => (keyInfo.value?.estimated ? null : (essentia.value.KeyStrength ?? null)))
 
 const chordInfo = computed(() => buildChordInfo(timeline.value, keyInfo.value))
-const chordKinds = computed(() => [...chordInfo.value.keys()].filter((c) => c !== 'N' && c !== 'X').length)
+const hasChords = computed(() => timeline.value.some((c) => c.chord !== 'N' && c.chord !== 'X'))
 
 const beats = computed(() =>
   Array.isArray(essentia.value.Beats) ? essentia.value.Beats.filter(Number.isFinite).sort((a, b) => a - b) : [],
@@ -69,27 +69,19 @@ const rhythm = computed(() => {
   const b = beats.value
   const intervals = b.slice(1).map((t, i) => t - b[i])
   const med = median(intervals)
-  let jitterMs = null
-  let cv = null
-  if (intervals.length >= 2) {
-    const mean = intervals.reduce((a, v) => a + v, 0) / intervals.length
-    const sd = Math.sqrt(intervals.reduce((a, v) => a + (v - mean) ** 2, 0) / intervals.length)
-    jitterMs = sd * 1000
-    cv = sd / mean
-  }
   return {
     count: b.length,
     intervals,
     medianInterval: med,
     beatBpm: med ? 60 / med : null,
-    jitterMs,
-    cv,
     barCount: Math.ceil(b.length / BEATS_PER_BAR),
     beatsPerBar: BEATS_PER_BAR,
   }
 })
 
 const bpm = computed(() => (Number.isFinite(essentia.value.BPM) ? essentia.value.BPM : rhythm.value.beatBpm))
+const hasRhythm = computed(() => !!bpm.value || beats.value.length > 0)
+const hasLoudness = computed(() => Number.isFinite(essentia.value.LUFS))
 
 const contour = computed(() => normalizeContour(essentia.value.PitchContour))
 const pitchStats = computed(() => (contour.value ? analyzePitch(contour.value, keyInfo.value) : null))
@@ -106,7 +98,7 @@ const loudnessCurve = computed(() => {
 // ---------------------------------------------------------------------------
 // 播放器（全頁共用）
 // ---------------------------------------------------------------------------
-const playback = createPlayback({ file: toRef(props, 'audioFile'), beats, beatsPerBar: BEATS_PER_BAR })
+const playback = createPlayback({ file: toRef(props, 'audioFile') })
 provide(PLAYBACK_KEY, playback)
 onBeforeUnmount(() => playback.dispose())
 
@@ -131,30 +123,11 @@ function savedTab() {
   }
 }
 
+// 分頁上直接顯示各自的重點數字
 const tabs = computed(() => [
-  {
-    id: 'harmony',
-    icon: 'harmony',
-    title: '和弦調性',
-    sub: [keyInfo.value?.name, chordKinds.value ? `${chordKinds.value} 種和弦` : null].filter(Boolean).join('・'),
-  },
-  {
-    id: 'pitch',
-    icon: 'pitch',
-    title: '音高頻率',
-    sub: [
-      a4.value ? `A4 ${a4.value.toFixed(1)} Hz` : null,
-      pitchStats.value?.low ? `${pitchStats.value.low.name}–${pitchStats.value.high.name}` : null,
-    ].filter(Boolean).join('・'),
-  },
-  {
-    id: 'rhythm',
-    icon: 'rhythm',
-    title: '速度節拍',
-    sub: [bpm.value ? `${Math.round(bpm.value)} BPM` : null, Number.isFinite(essentia.value.LUFS) ? `${essentia.value.LUFS} LUFS` : null]
-      .filter(Boolean)
-      .join('・'),
-  },
+  { id: 'harmony', icon: 'harmony', title: '和弦調性', sub: keyInfo.value?.name ?? '' },
+  { id: 'pitch', icon: 'pitch', title: '音高頻率', sub: a4.value ? `A4 ${a4.value.toFixed(1)} Hz` : '' },
+  { id: 'rhythm', icon: 'rhythm', title: '速度節拍', sub: bpm.value ? `${Math.round(bpm.value)} BPM` : '' },
 ])
 
 const tab = ref(['harmony', 'pitch', 'rhythm'].includes(savedTab()) ? savedTab() : 'harmony')
@@ -165,12 +138,6 @@ watch(tab, (t) => {
     // 存不了就算了
   }
 })
-
-const tabsEl = ref(null)
-function openTab(id) {
-  tab.value = id
-  tabsEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
 
 function onTabKey(e) {
   const ids = tabs.value.map((t) => t.id)
@@ -185,9 +152,6 @@ function onTabKey(e) {
   tab.value = next
   document.getElementById('tab-' + next)?.focus()
 }
-
-// 和弦進行分析中選到的段落，同步標示在和弦時間軸與節拍時間軸上
-const progressionHighlights = ref([])
 </script>
 
 <template>
@@ -197,28 +161,15 @@ const progressionHighlights = ref([])
       <span>無法連線到分析伺服器，下面顯示的是<strong>示範資料</strong>，不是這個檔案的分析結果。</span>
     </div>
 
-    <SongOverview
-      :file-name="fileName"
-      :total="total"
-      :key-info="keyInfo"
-      :key-confidence="keyConfidence"
-      :bpm="bpm"
-      :bar-count="rhythm.barCount"
-      :tuning="tuning"
-      :lufs="essentia.LUFS ?? null"
-      @open="openTab"
-    />
-
     <PlayerBar
+      :file-name="fileName"
       :total="total"
       :timeline="timeline"
       :chord-info="chordInfo"
-      :contour="contour"
-      :key-info="keyInfo"
-      :has-beats="beats.length > 0"
+      @pick="$emit('file-selected', $event)"
     />
 
-    <div ref="tabsEl" class="tabs" role="tablist" aria-label="分析類別">
+    <div class="tabs" role="tablist" aria-label="分析類別">
       <button
         v-for="t in tabs"
         :id="'tab-' + t.id"
@@ -233,11 +184,9 @@ const progressionHighlights = ref([])
         @click="tab = t.id"
         @keydown="onTabKey"
       >
-        <span class="tab-icon"><AppIcon :name="t.icon" :size="24" /></span>
-        <span class="tab-text">
-          <span class="tab-title">{{ t.title }}</span>
-          <span class="tab-sub">{{ t.sub || '—' }}</span>
-        </span>
+        <AppIcon :name="t.icon" :size="22" class="tab-icon" />
+        <span class="tab-title">{{ t.title }}</span>
+        <span v-if="t.sub" class="tab-sub">{{ t.sub }}</span>
       </button>
     </div>
 
@@ -245,63 +194,31 @@ const progressionHighlights = ref([])
     <section v-show="tab === 'harmony'" id="panel-harmony" class="panel" role="tabpanel" aria-labelledby="tab-harmony">
       <div class="row">
         <KeyCard :key-info="keyInfo" :confidence="keyConfidence" />
-        <ChordShare :timeline="timeline" :chord-info="chordInfo" />
+        <ChordShare v-if="hasChords" :timeline="timeline" :chord-info="chordInfo" />
+        <div v-else class="card empty-card"><p class="note">整首都沒有偵測到和弦</p></div>
       </div>
-      <ChordTimeline
-        :timeline="timeline"
-        :chord-info="chordInfo"
-        :beats="beats"
-        :beats-per-bar="rhythm.beatsPerBar"
-        :total="total"
-        :highlights="progressionHighlights"
-      />
-      <KeyAnalysis
-        :timeline="timeline"
-        :key-name="keyInfo?.name ?? ''"
-        :key-estimated="!!keyInfo?.estimated"
-        :beats="beats"
-        :beats-per-bar="rhythm.beatsPerBar"
-        @highlight="progressionHighlights = $event"
-      />
+      <KeyAnalysis v-if="hasChords" :timeline="timeline" :key-name="keyInfo?.name ?? ''" :beats="beats" :beats-per-bar="rhythm.beatsPerBar" />
     </section>
 
     <!-- 音高頻率 -->
     <section v-show="tab === 'pitch'" id="panel-pitch" class="panel" role="tabpanel" aria-labelledby="tab-pitch">
       <div class="row">
         <TuningCard :tuning="tuning" />
-        <PitchRange :stats="pitchStats" />
+        <PitchRange v-if="pitchStats" :stats="pitchStats" />
       </div>
-      <PitchContour
-        :contour="contour"
-        :image-src="pitchImage"
-        :timeline="timeline"
-        :chord-info="chordInfo"
-        :key-info="keyInfo"
-        :total="total"
-      />
+      <PitchContour :contour="contour" :image-src="pitchImage" :key-info="keyInfo" :total="total" />
       <PitchShare v-if="pitchStats && pitchStats.voicedRatio > 0" :stats="pitchStats" :key-info="keyInfo" />
     </section>
 
     <!-- 速度節拍 -->
     <section v-show="tab === 'rhythm'" id="panel-rhythm" class="panel" role="tabpanel" aria-labelledby="tab-rhythm">
-      <div class="row">
+      <div v-if="!hasRhythm && !hasLoudness" class="card"><p class="note">沒有速度、節拍與響度資料（Essentia 沒有回傳）</p></div>
+      <div v-if="hasRhythm" class="row">
         <TempoCard :bpm="bpm" :rhythm="rhythm" />
         <TempoShare :beats="beats" :rhythm="rhythm" />
       </div>
-      <BeatTimeline
-        :beats="beats"
-        :rhythm="rhythm"
-        :chords="timeline"
-        :chord-info="chordInfo"
-        :total="total"
-        :highlights="progressionHighlights"
-      />
-      <LoudnessCard
-        :lufs="essentia.LUFS ?? null"
-        :loudness-range="essentia.LoudnessRange ?? null"
-        :curve="loudnessCurve"
-        :total="total"
-      />
+      <BeatTimeline v-if="beats.length" :beats="beats" :rhythm="rhythm" :total="total" />
+      <LoudnessCard v-if="hasLoudness" :lufs="essentia.LUFS" :curve="loudnessCurve" :total="total" />
     </section>
   </div>
 </template>
@@ -343,19 +260,17 @@ const progressionHighlights = ref([])
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 1.5rem 0 1.25rem;
-  scroll-margin-top: 96px;
+  margin: 1.25rem 0;
 }
 
 .tab {
   display: flex;
   align-items: center;
-  gap: 12px;
-  text-align: left;
+  gap: 10px;
   background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 1.1rem;
   color: var(--text);
   transition: border-color 0.15s, background 0.15s;
   min-width: 0;
@@ -368,40 +283,29 @@ const progressionHighlights = ref([])
 .tab.on {
   border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: inset 0 -4px 0 var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .tab-icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-md);
-  background: var(--surface2);
-  color: var(--text2);
+  color: var(--muted);
   flex-shrink: 0;
 }
 
 .tab.on .tab-icon {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.tab-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  color: var(--accent);
 }
 
 .tab-title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .tab-sub {
-  font-size: 0.85rem;
-  color: var(--muted);
+  margin-left: auto;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -411,6 +315,10 @@ const progressionHighlights = ref([])
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.empty-card {
+  align-self: start;
 }
 
 .row {
@@ -427,14 +335,8 @@ const progressionHighlights = ref([])
 
   .tab {
     flex-direction: column;
-    text-align: center;
+    gap: 2px;
     padding: 0.6rem 0.4rem;
-    gap: 4px;
-  }
-
-  .tab-icon {
-    width: 36px;
-    height: 36px;
   }
 
   .tab-title {
@@ -442,7 +344,8 @@ const progressionHighlights = ref([])
   }
 
   .tab-sub {
-    display: none;
+    margin-left: 0;
+    font-size: 0.8rem;
   }
 }
 </style>

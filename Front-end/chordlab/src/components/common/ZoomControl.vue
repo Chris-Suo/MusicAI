@@ -10,11 +10,11 @@ defineEmits(['zoom'])
 
 <template>
   <div class="zoom" role="group" aria-label="時間軸縮放">
-    <button class="btn icon-btn" type="button" :disabled="zoomIdx === 0" title="縮小" @click="$emit('zoom', -1)">
+    <button class="btn icon-btn" type="button" :disabled="zoomIdx === 0" title="縮小" aria-label="縮小" @click="$emit('zoom', -1)">
       <AppIcon name="minus" :size="16" />
     </button>
     <span class="zoom-val" aria-live="polite">{{ zoomIdx === 0 ? '整首' : ZOOMS[zoomIdx] + '×' }}</span>
-    <button class="btn icon-btn" type="button" :disabled="zoomIdx === ZOOMS.length - 1" title="放大" @click="$emit('zoom', 1)">
+    <button class="btn icon-btn" type="button" :disabled="zoomIdx === ZOOMS.length - 1" title="放大" aria-label="放大" @click="$emit('zoom', 1)">
       <AppIcon name="plus" :size="16" />
     </button>
   </div>

@@ -6,15 +6,17 @@ WAV 音樂分析器 — Vue 3 前端介面。上傳 WAV 後顯示三大類分析
 
 | 區塊 | 內容 |
 |---|---|
-| 歌曲總覽 | 調性、速度（BPM）、調音基準（A4 Hz）、整體響度（LUFS）四個重點數字，點一下跳到對應分頁 |
-| 播放器（固定在上方） | 播放／暫停（空白鍵）、整首和弦色帶可拖曳跳轉、即時顯示目前和弦、第幾小節第幾拍、旋律音高、節拍器 |
-| 和弦調性 | 調性卡（信心度、音階、順階和弦、調性情緒與常見情境）、和弦占比、和弦時間軸、和弦進行（級數格） |
-| 音高頻率 | 調音基準（音分偏差尺）、旋律音域（鋼琴鍵盤）、旋律音高曲線、音高占比（音名、音區頻率 Hz） |
-| 速度節拍 | 速度（速度術語尺、穩定度）、BPM 占比、節拍時間軸（含速度曲線）、音量（響度參考尺、響度變化、大聲／小聲占比） |
+| 上傳 | 拖曳或點選 WAV，選好就自動開始分析 |
+| 播放器（固定在上方） | 檔名、播放／暫停（空白鍵，← → 前後 5 秒）、進度條可拖曳跳轉、正在播放的和弦、換檔案 |
+| 分頁 | 三個分頁上直接顯示重點數字：調性、A4 頻率、BPM |
+| 和弦調性 | 調性（信心度、音階、情緒與情境）、和弦占比（和聲功能＋前幾名和弦）、和弦進行（主要循環、常見進行、級數格；可切換簡譜／羅馬、每格 1 小節／半小節） |
+| 音高頻率 | 調音基準（音分偏差尺）、旋律音域（鋼琴鍵盤）、旋律音高曲線（可縮放，左邊音名、右邊 Hz）、音高占比（音名、音區頻率 Hz） |
+| 速度節拍 | 速度（速度術語尺）、BPM 占比、節拍時間軸（小節線＋速度曲線）、音量（響度參考尺、響度變化） |
 
-- 所有時間軸共用同一個播放位置；點時間軸、級數格都會從該處播放
+- 畫面以簡潔為原則：同一個數字只出現在一個地方，沒有資料的區塊合併成一行說明
+- 圖表預設把整首歌放進一個畫面（旋律音高曲線可放大到 8×），共用同一個播放位置；點圖表或級數格都會從該處播放
 - 白天／黑夜主題（右上角切換，記在 localStorage，預設跟系統設定），色票以投影幕清楚為目標
-- 和聲功能四色（主／下屬／屬／調外）經過色盲模擬檢查，旁邊一定有級數或文字標示
+- 和聲功能四色（主／下屬／屬／調外）經過色盲模擬檢查，旁邊一定有級數或和弦名稱
 
 ## 專案結構
 
@@ -25,16 +27,16 @@ chordlab/
 │   │   └── main.css              # 白天／黑夜色票、共用樣式（.card、.seg、.btn、.legend…）
 │   ├── composables/
 │   │   ├── useTheme.js           # 主題切換
-│   │   ├── usePlayback.js        # 全頁共用播放器（provide / inject）、節拍器
-│   │   └── useTimeAxis.js        # 可縮放時間軸（寬度、刻度、縮放、浮動提示位置）
+│   │   ├── usePlayback.js        # 全頁共用播放器（provide / inject）
+│   │   └── useTimeAxis.js        # 時間軸（寬度、刻度、縮放、浮動提示位置）
 │   ├── components/
 │   │   ├── AppHeader.vue / ThemeToggle.vue
-│   │   ├── UploadZone.vue / AnalyzeButton.vue / ProgressBar.vue
+│   │   ├── UploadZone.vue        # 拖放上傳
+│   │   ├── AnalysisStatus.vue    # 分析中進度／失敗重試
 │   │   ├── ResultsPanel.vue      # 結果容器：資料整理、播放器、三個分頁
-│   │   ├── SongOverview.vue      # 歌曲總覽
 │   │   ├── PlayerBar.vue         # 共用播放器
-│   │   ├── common/               # AppIcon、ChordStrip、PlayHead、TimeRuler、ZoomControl
-│   │   ├── harmony/              # KeyCard、ChordShare、ChordTimeline、KeyAnalysis
+│   │   ├── common/               # AppIcon、FilePickButton、PlayHead、TimeRuler、ZoomControl
+│   │   ├── harmony/              # KeyCard、ChordShare、KeyAnalysis（和弦進行）
 │   │   ├── pitch/                # TuningCard、PitchRange、PitchContour、PitchShare
 │   │   └── rhythm/               # TempoCard、TempoShare、BeatTimeline、LoudnessCard
 │   ├── utils/

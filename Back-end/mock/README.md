@@ -14,7 +14,7 @@
 
 ```bash
 cd Back-end/mock
-python3 mock_server.py            # http://localhost:8080，對應目前 vite.config.js 的 proxy
+python3 mock_server.py --port 8000   # vite.config.js 的 proxy 指向 8000
 ```
 
 另一個終端機：
@@ -28,7 +28,7 @@ npm run dev
 
 | 參數 | 說明 |
 |---|---|
-| `--port 8000` | 改成跟正式後端一樣的 port（vite proxy 目前指向 8080） |
+| `--port 8000` | 跟正式後端一樣的 port（vite proxy 指向 8000；不加的話預設是 8080） |
 | `--scenario minor` | 啟動時的情境（見下表） |
 | `--tuning sharp` | `random` / `standard` / `sharp` / `flat` |
 | `--delay 3` | 假裝分析要花幾秒（預設 1.5，讓進度條看得到） |
@@ -37,12 +37,12 @@ npm run dev
 ## 執行中切換情境（不用重啟）
 
 ```bash
-curl "http://localhost:8080/api/mock/config?scenario=error500"
-curl "http://localhost:8080/api/mock/config?tuning=flat&delay=0&seed=1"
-curl  http://localhost:8080/api/mock/config        # 查看目前設定
+curl "http://localhost:8000/api/mock/config?scenario=error500"
+curl "http://localhost:8000/api/mock/config?tuning=flat&delay=0&seed=1"
+curl  http://localhost:8000/api/mock/config        # 查看目前設定
 ```
 
-切完直接在前端按「分析」就會套用。
+切完在前端按播放器右邊的「換檔案」重新選一次檔案，就會用新的情境分析。
 
 | 情境 | 結果 |
 |---|---|
