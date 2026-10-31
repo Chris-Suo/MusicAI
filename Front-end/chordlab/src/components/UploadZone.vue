@@ -1,7 +1,8 @@
 <script setup>
 import { ref } from 'vue'
+import AppIcon from '@/components/common/AppIcon.vue'
 
-const props = defineProps({
+defineProps({
   file: {
     type: File,
     default: null,
@@ -20,7 +21,7 @@ function formatSize(bytes) {
 
 function handleFile(file) {
   if (!file) return
-  if (!file.name.endsWith('.wav') && file.type !== 'audio/wav') {
+  if (!file.name.toLowerCase().endsWith('.wav') && file.type !== 'audio/wav') {
     alert('請上傳 .wav 格式的音訊檔案')
     return
   }
@@ -29,21 +30,18 @@ function handleFile(file) {
 
 function onInputChange(e) {
   handleFile(e.target.files[0])
+  e.target.value = ''
 }
 
 function onDrop(e) {
   isDragging.value = false
   handleFile(e.dataTransfer.files[0])
 }
-
-function onRemove() {
-  emit('file-removed')
-}
 </script>
 
 <template>
   <div>
-    <!-- Drop Zone (shown when no file selected) -->
+    <!-- 還沒選檔：拖放區 -->
     <label
       v-if="!file"
       class="upload-zone"
@@ -53,17 +51,31 @@ function onRemove() {
       @drop.prevent="onDrop"
     >
       <input type="file" accept=".wav,audio/wav" class="hidden-input" @change="onInputChange" />
-      <span class="upload-icon">♪</span>
-      <div class="upload-title">上傳 WAV 音樂檔案</div>
-      <div class="upload-sub">拖曳檔案至此，或點擊選擇 · 僅支援 .wav 格式</div>
+      <span class="upload-icon"><AppIcon name="upload" :size="32" /></span>
+      <span class="upload-title">上傳 WAV 音樂檔案</span>
+      <span class="upload-sub">拖曳檔案到這裡，或點擊選擇・僅支援 .wav</span>
+      <span class="features">
+        <span class="pill"><AppIcon name="harmony" :size="16" />和弦調性</span>
+        <span class="pill"><AppIcon name="pitch" :size="16" />音高頻率</span>
+        <span class="pill"><AppIcon name="rhythm" :size="16" />速度節拍</span>
+      </span>
     </label>
 
-    <!-- File Info (shown when file is selected) -->
+    <!-- 已選檔：檔名列＋動作（分析按鈕由父層放進 slot） -->
     <div v-else class="file-info">
-      <div class="file-dot"></div>
-      <div class="file-name">{{ file.name }}</div>
-      <div class="file-size">{{ formatSize(file.size) }}</div>
-      <button class="file-remove" type="button" @click="onRemove">×</button>
+      <span class="file-icon"><AppIcon name="file" :size="20" /></span>
+      <div class="file-text">
+        <div class="file-name">{{ file.name }}</div>
+        <div class="file-size">{{ formatSize(file.size) }}</div>
+      </div>
+      <label class="btn change">
+        <input type="file" accept=".wav,audio/wav" class="hidden-input" @change="onInputChange" />
+        換檔案
+      </label>
+      <button class="btn remove" type="button" title="移除檔案" aria-label="移除檔案" @click="emit('file-removed')">
+        <AppIcon name="close" :size="16" />
+      </button>
+      <slot />
     </div>
   </div>
 </template>
@@ -79,89 +91,109 @@ function onRemove() {
 }
 
 .upload-zone {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   position: relative;
-  border: 1.5px dashed rgba(124, 106, 245, 0.35);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 3rem 2rem;
+  padding: 2.75rem 2rem;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s;
-  overflow: hidden;
-  margin-bottom: 1.5rem;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 1.25rem;
 }
 
 .upload-zone:hover,
 .upload-zone.drag-over {
   border-color: var(--accent);
-  background: rgba(124, 106, 245, 0.06);
+  background: var(--accent-soft);
+}
+
+.upload-zone:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .upload-icon {
-  display: block;
-  font-size: 36px;
-  margin-bottom: 1rem;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 0.5rem;
 }
 
 .upload-title {
-  font-size: 17px;
-  font-weight: 500;
-  margin-bottom: 0.4rem;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .upload-sub {
-  font-size: 13px;
+  font-size: 0.95rem;
   color: var(--muted);
 }
 
-/* File info row */
-.file-info {
+.features {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0.75rem;
 }
 
-.file-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent2);
-  flex-shrink: 0;
+/* 檔名列 */
+.file-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.file-text {
+  flex: 1;
+  min-width: 140px;
 }
 
 .file-name {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  flex: 1;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .file-size {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--muted);
-  white-space: nowrap;
 }
 
-.file-remove {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
-  padding: 0 4px;
-  transition: color 0.15s;
+.change {
+  position: relative;
+  overflow: hidden;
 }
 
-.file-remove:hover {
-  color: var(--text);
+.remove {
+  width: 36px;
+  padding: 5px 0;
 }
 </style>

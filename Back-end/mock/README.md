@@ -6,6 +6,7 @@
 - 直接 import `../backend/btc_runner.py`、`../backend/essentia_runner.py` 裡的解析函式，所以 `timeline`、`tuning`、`Essentia` 的結構跟正式後端一致
 - 會讀上傳 WAV 的長度，產生同樣長度的和弦時間軸
 - 調性由 Essentia 提供（`Key`、`KeyStrength`），並與產生的和弦進行一致
+- 也會產生新版 `pitch.py` 的 `PitchContour`（走調內音的旋律，副歌較高）、`LoudnessCurve`（副歌較大聲）與 `LoudnessRange`
 - 和弦標籤使用 BTC 的字彙格式：`C`、`A:min`、`G:7`、`F:maj7`、`B:hdim7`、`N`…
 - 音高圖使用 `Front-end/chordlab/src/assets/fig.png`（不存在時用程式畫一張）
 
