@@ -1,71 +1,40 @@
 <script setup>
+/**
+ * 拖放區：拖檔案進來或點一下選檔，選好就 emit('file-selected', file)（格式由 App 檢查）
+ */
 import { ref } from 'vue'
+import AppIcon from '@/components/common/AppIcon.vue'
 
-const props = defineProps({
-  file: {
-    type: File,
-    default: null,
-  },
-})
-
-const emit = defineEmits(['file-selected', 'file-removed'])
+const emit = defineEmits(['file-selected'])
 
 const isDragging = ref(false)
 
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(2) + ' MB'
-}
-
-function handleFile(file) {
-  if (!file) return
-  if (!file.name.endsWith('.wav') && file.type !== 'audio/wav') {
-    alert('請上傳 .wav 格式的音訊檔案')
-    return
-  }
-  emit('file-selected', file)
-}
-
 function onInputChange(e) {
-  handleFile(e.target.files[0])
+  const file = e.target.files[0]
+  e.target.value = ''
+  if (file) emit('file-selected', file)
 }
 
 function onDrop(e) {
   isDragging.value = false
-  handleFile(e.dataTransfer.files[0])
-}
-
-function onRemove() {
-  emit('file-removed')
+  const file = e.dataTransfer.files[0]
+  if (file) emit('file-selected', file)
 }
 </script>
 
 <template>
-  <div>
-    <!-- Drop Zone (shown when no file selected) -->
-    <label
-      v-if="!file"
-      class="upload-zone"
-      :class="{ 'drag-over': isDragging }"
-      @dragover.prevent="isDragging = true"
-      @dragleave="isDragging = false"
-      @drop.prevent="onDrop"
-    >
-      <input type="file" accept=".wav,audio/wav" class="hidden-input" @change="onInputChange" />
-      <span class="upload-icon">♪</span>
-      <div class="upload-title">上傳 WAV 音樂檔案</div>
-      <div class="upload-sub">拖曳檔案至此，或點擊選擇 · 僅支援 .wav 格式</div>
-    </label>
-
-    <!-- File Info (shown when file is selected) -->
-    <div v-else class="file-info">
-      <div class="file-dot"></div>
-      <div class="file-name">{{ file.name }}</div>
-      <div class="file-size">{{ formatSize(file.size) }}</div>
-      <button class="file-remove" type="button" @click="onRemove">×</button>
-    </div>
-  </div>
+  <label
+    class="upload-zone"
+    :class="{ 'drag-over': isDragging }"
+    @dragover.prevent="isDragging = true"
+    @dragleave="isDragging = false"
+    @drop.prevent="onDrop"
+  >
+    <input type="file" accept=".wav,audio/wav" class="hidden-input" @change="onInputChange" />
+    <span class="upload-icon"><AppIcon name="upload" :size="32" /></span>
+    <span class="upload-title">上傳 WAV 音樂檔案</span>
+    <span class="upload-sub">拖曳到這裡，或點一下選擇檔案</span>
+  </label>
 </template>
 
 <style scoped>
@@ -79,89 +48,49 @@ function onRemove() {
 }
 
 .upload-zone {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   position: relative;
-  border: 1.5px dashed rgba(124, 106, 245, 0.35);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 3rem 2rem;
+  padding: 3.5rem 2rem;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s;
-  overflow: hidden;
-  margin-bottom: 1.5rem;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .upload-zone:hover,
 .upload-zone.drag-over {
   border-color: var(--accent);
-  background: rgba(124, 106, 245, 0.06);
+  background: var(--accent-soft);
+}
+
+.upload-zone:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .upload-icon {
-  display: block;
-  font-size: 36px;
-  margin-bottom: 1rem;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 0.5rem;
 }
 
 .upload-title {
-  font-size: 17px;
-  font-weight: 500;
-  margin-bottom: 0.4rem;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .upload-sub {
-  font-size: 13px;
+  font-size: 0.95rem;
   color: var(--muted);
-}
-
-/* File info row */
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.file-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent2);
-  flex-shrink: 0;
-}
-
-.file-name {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-size {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.file-remove {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
-  padding: 0 4px;
-  transition: color 0.15s;
-}
-
-.file-remove:hover {
-  color: var(--text);
 }
 </style>

@@ -13,8 +13,10 @@ ChordLab 假後端（Mock Server）
         "timeline": [{"chord": "N", "start": 0.0, "dur": 0.743}, ...]
       },
       "Essentia": {
-        "essentia": {"LUFS": -14.2, "BPM": 96.3, "Beats": [0.412, 1.035, 1.659, ...],
-                     "Key": "C major", "KeyStrength": 0.82, "KeyProfile": "bgate"},
+        "essentia": {"LUFS": -14.2, "LoudnessRange": 6.4, "BPM": 96.3, "Beats": [0.412, 1.035, 1.659, ...],
+                     "Key": "C major", "KeyStrength": 0.82, "KeyProfile": "bgate",
+                     "PitchContour": {"hop": 0.0495, "midi": [null, 64.02, 64.1, ...]},
+                     "LoudnessCurve": {"hop": 0.5, "lufs": [-31.2, -20.5, ...]}},
         "image_base64": "<png base64>",
         "image_mime": "image/png"
       }
@@ -286,6 +288,68 @@ def make_beats(rng: random.Random, duration: float, bpm: float) -> list:
     return beats
 
 
+def section_of(t: float, bpm: float) -> int:
+    """每 8 小節換一段：0 = 主歌、1 = 副歌（給旋律高低與響度起伏用）"""
+    return int(t / (8 * 4 * 60.0 / bpm)) % 2
+
+
+def make_pitch_contour(rng: random.Random, duration: float, bpm: float,
+                       tonic: int, mode: str, scenario: str) -> dict:
+    """模擬 pitch.py 的 PitchContour：約每 50ms 一點的 MIDI 音高，null = 沒有旋律
+    旋律走調內音、一句一句有休息，長音有抖音，副歌比主歌高"""
+    hop = round(7 * 128 / 44100.0, 5)
+    n = int(duration / hop)
+    midi = [None] * n
+    if scenario == "silent":
+        return {"hop": hop, "midi": midi}
+
+    scale = [0, 2, 4, 5, 7, 9, 11] if mode == "major" else [0, 2, 3, 5, 7, 8, 10]
+    base = 60 + tonic if tonic <= 6 else 48 + tonic  # 主音落在 G3～F#4
+    notes = sorted({base + octave * 12 + s for octave in (-1, 0, 1) for s in scale})
+    notes = [m for m in notes if base - 5 <= m <= base + 16]
+    beat = 60.0 / bpm
+    idx = len(notes) // 3
+    t = rng.uniform(0.5, 2.0)
+    prev = None
+    while t < duration - 0.3:
+        lift = 2 if section_of(t, bpm) else 0  # 副歌往上兩個音階音
+        for _ in range(rng.randint(4, 10)):
+            length = beat * rng.choice([0.5, 0.5, 1, 1, 1.5, 2])
+            idx = max(0, min(len(notes) - 3, idx + rng.choice([-2, -1, -1, 0, 1, 1, 2])))
+            target = notes[min(len(notes) - 1, idx + lift)]
+            start = int(t / hop)
+            end = min(n, int((t + length * 0.92) / hop))
+            for k in range(start, end):
+                dt = (k - start) * hop
+                value = target + rng.gauss(0, 0.06)
+                if prev is not None and dt < 0.05:  # 從上一個音滑過來
+                    value = prev + (target - prev) * (dt / 0.05)
+                if dt > 0.25:  # 長音的抖音
+                    value += 0.25 * math.sin(2 * math.pi * 5.5 * dt)
+                midi[k] = round(value, 2)
+            prev = target
+            t += length
+            if t >= duration - 0.3:
+                break
+        t += beat * rng.choice([1, 2, 2, 3])  # 句尾換氣
+        prev = None
+    return {"hop": hop, "midi": midi}
+
+
+def make_loudness_curve(rng: random.Random, duration: float, bpm: float, lufs: float) -> dict:
+    """模擬 pitch.py 的 LoudnessCurve：短時響度，每 0.5 秒一點；副歌較大聲、頭尾淡入淡出"""
+    hop = 0.5
+    values = []
+    level = lufs
+    for i in range(int(duration / hop) + 1):
+        t = i * hop
+        target = lufs + (2.5 if section_of(t, bpm) else -2.5)
+        fade = min(1.0, t / 4.0, max(0.0, duration - t) / 4.0)
+        level += (target - level) * 0.3 + rng.gauss(0, 0.4)
+        values.append(round(max(-70.0, level - (1 - fade) * 18), 1))
+    return {"hop": hop, "lufs": values}
+
+
 def make_essentia(rng: random.Random, duration: float, bpm: float,
                   tonic: int, mode: str, scenario: str) -> dict:
     """pitch.py 寫出的 EssentiaOutput.json（含 KeyExtractor 結果）"""
@@ -293,13 +357,20 @@ def make_essentia(rng: random.Random, duration: float, bpm: float,
         strength = rng.uniform(0.2, 0.4)
     else:
         strength = rng.uniform(0.55, 0.92)
+    lufs = round(rng.uniform(-24, -8), 2)
+    loudness = make_loudness_curve(rng, duration, bpm, lufs)
+    audible = sorted(v for v in loudness["lufs"] if v > -60)
+    loudness_range = (audible[int(len(audible) * 0.95) - 1] - audible[int(len(audible) * 0.1)]) if len(audible) > 10 else 0.0
     return {
-        "LUFS": round(rng.uniform(-24, -8), 2),
+        "LUFS": lufs,
+        "LoudnessRange": round(loudness_range, 2),
         "BPM": round(bpm, 2),
         "Beats": make_beats(rng, duration, bpm),
         "Key": f"{KEY_NAMES[tonic]} {mode}",
         "KeyStrength": round(strength, 3),
         "KeyProfile": "bgate",
+        "PitchContour": make_pitch_contour(rng, duration, bpm, tonic, mode, scenario),
+        "LoudnessCurve": loudness,
     }
 
 
