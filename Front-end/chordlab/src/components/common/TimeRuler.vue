@@ -1,5 +1,5 @@
 <script setup>
-import { fmtTick } from '@/utils/stats.js'
+import { fmtTick } from '@/utils/time.js'
 
 defineProps({
   ticks: { type: Array, required: true },

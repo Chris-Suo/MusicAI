@@ -8,12 +8,14 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 import FilePickButton from '@/components/common/FilePickButton.vue'
 import { usePlayback } from '@/composables/usePlayback.js'
-import { segmentAt, fmtClock } from '@/utils/stats.js'
+import { isNoChord } from '@/utils/chords.js'
+import { segmentAt, fmtClock } from '@/utils/time.js'
 
 const props = defineProps({
   fileName: { type: String, default: '' },
   total: { type: Number, required: true },
   timeline: { type: Array, default: () => [] },
+  // utils/chords.js buildChordInfo() 的結果
   chordInfo: { type: Map, required: true },
 })
 
@@ -26,12 +28,11 @@ const progress = computed(() => Math.min(100, (pb.current.value / props.total) *
 // 開始播放（或跳轉）後才顯示目前的和弦
 const nowChord = computed(() => {
   if (!pb.active.value) return null
-  const i = segmentAt(props.timeline, pb.current.value)
-  const label = i >= 0 ? props.timeline[i].chord : null
+  const label = props.timeline[segmentAt(props.timeline, pb.current.value)]?.chord
   if (!label) return null
-  if (label === 'N' || label === 'X') return { name: '無和弦', fn: 'none', degree: null }
+  if (isNoChord(label)) return { name: '無和弦', fn: 'none', degree: null }
   const info = props.chordInfo.get(label)
-  return { name: info?.name ?? label, fn: info?.fn ?? 'none', degree: info?.degree?.label ?? null }
+  return { name: info.name, fn: info.fn, degree: info.degree?.label ?? null }
 })
 
 // ---------------------------------------------------------------------------

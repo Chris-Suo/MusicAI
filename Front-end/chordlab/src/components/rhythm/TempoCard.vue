@@ -3,12 +3,12 @@
  * 速度：BPM、速度術語、在速度尺上的位置、拍數與小節數
  */
 import { computed } from 'vue'
-import { tempoTerm } from '@/utils/music.js'
+import { tempoTerm } from '@/utils/rhythm.js'
 
 const props = defineProps({
   // Essentia RhythmExtractor 的整體 BPM（沒有時用拍距中位數）
   bpm: { type: Number, default: null },
-  // ResultsPanel 算好的拍點統計
+  // utils/rhythm.js beatStats() 的結果
   rhythm: { type: Object, required: true },
 })
 
@@ -28,7 +28,6 @@ const TICKS = [40, 60, 76, 108, 120, 168, 200]
 const xOf = (b) => ((Math.min(MAX, Math.max(MIN, b)) - MIN) / (MAX - MIN)) * W
 
 const term = computed(() => tempoTerm(props.bpm))
-
 </script>
 
 <template>
@@ -43,7 +42,7 @@ const term = computed(() => tempoTerm(props.bpm))
     <div v-if="!bpm" class="note">沒有速度資料（Essentia 沒有回傳 BPM 與拍點）</div>
     <template v-else>
       <div class="hero">
-        <span class="bpm">{{ bpm.toFixed(1) }}<span class="unit">BPM</span></span>
+        <span class="hero-value">{{ bpm.toFixed(1) }}<span class="hero-unit">BPM</span></span>
         <span v-if="term" class="term"><strong>{{ term.it }}</strong> {{ term.zh }}</span>
       </div>
 
@@ -75,26 +74,6 @@ const term = computed(() => tempoTerm(props.bpm))
 </template>
 
 <style scoped>
-.hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-}
-
-.bpm {
-  font-size: 2.6rem;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.unit {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--text2);
-  margin-left: 6px;
-}
-
 .term {
   font-size: 1.15rem;
   color: var(--text2);

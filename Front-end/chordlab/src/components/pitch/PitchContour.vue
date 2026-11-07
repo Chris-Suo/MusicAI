@@ -12,8 +12,9 @@ import ZoomControl from '@/components/common/ZoomControl.vue'
 import PlayHead from '@/components/common/PlayHead.vue'
 import { useTimeAxis } from '@/composables/useTimeAxis.js'
 import { usePlayback } from '@/composables/usePlayback.js'
-import { percentile, fmtClock } from '@/utils/stats.js'
-import { midiToName, midiToHz, fmtHz, scalePitchClasses } from '@/utils/music.js'
+import { percentile } from '@/utils/stats.js'
+import { fmtClock } from '@/utils/time.js'
+import { midiToName, midiToHz, fmtHz, scalePitchClasses, mod12 } from '@/utils/theory.js'
 
 const props = defineProps({
   contour: { type: Object, default: null },
@@ -44,6 +45,7 @@ const y = (m) => (yRange.value.hi + 0.5 - m) * yRange.value.rowH
 
 const inKey = computed(() => scalePitchClasses(props.keyInfo))
 
+// 每個半音一列（由高到低）
 const rows = computed(() => {
   const r = yRange.value
   if (!r) return []
@@ -52,12 +54,12 @@ const rows = computed(() => {
   const labelAll = r.rowH >= 16 && inKey.value.size > 0
   const out = []
   for (let m = r.hi; m >= r.lo; m--) {
-    const pc = ((m % 12) + 12) % 12
+    const pc = mod12(m)
     out.push({
       m,
       top: (r.hi - m) * r.rowH,
       inKey: inKey.value.has(pc),
-      tonic: props.keyInfo && pc === props.keyInfo.tonic,
+      tonic: pc === tonic,
       isC: pc === 0,
       label: pc === 0 || pc === tonic || (labelAll && inKey.value.has(pc)) ? midiToName(m, props.keyInfo) : '',
       hz: Math.round(midiToHz(m)),
@@ -65,6 +67,9 @@ const rows = computed(() => {
   }
   return out
 })
+const labeledRows = computed(() => rows.value.filter((r) => r.label))
+const keyRows = computed(() => rows.value.filter((r) => r.inKey))
+const cRows = computed(() => rows.value.filter((r) => r.isC))
 
 // 曲線：沒有旋律或超出範圍的地方斷開
 const path = computed(() => {
@@ -111,7 +116,7 @@ function onMove(e) {
 }
 
 function onClick(e) {
-  pb?.seek(eventTime(e).t)
+  pb.seek(eventTime(e).t)
 }
 </script>
 
@@ -126,23 +131,23 @@ function onClick(e) {
 
     <template v-if="contour && yRange">
       <div class="chart-wrap">
-        <div class="layout">
+        <div class="chart-layout">
           <!-- 固定的縱軸 -->
-          <div class="y-axis" :style="{ width: AXIS_W + 'px' }" aria-hidden="true">
+          <div class="chart-axis note-axis" :style="{ width: AXIS_W + 'px' }" aria-hidden="true">
             <div class="y-spacer"></div>
             <div class="y-labels" :style="{ height: yRange.height + 'px' }">
               <span
-                v-for="r in rows.filter((r) => r.label)"
+                v-for="r in labeledRows"
                 :key="r.m"
-                class="y-label"
+                class="axis-label"
                 :class="{ c: r.isC, tonic: r.tonic }"
                 :style="{ top: r.top + yRange.rowH / 2 + 'px' }"
               >{{ r.label }}</span>
             </div>
           </div>
 
-          <div ref="plotEl" class="plot-wrap">
-            <div class="inner" :style="{ width: width + 'px' }">
+          <div ref="plotEl" class="chart-plot">
+            <div class="chart-inner" :style="{ width: width + 'px' }">
               <TimeRuler :ticks="ticks" :px-per-sec="pxPerSec" />
               <svg
                 :width="width"
@@ -155,7 +160,7 @@ function onClick(e) {
                 @click="onClick"
               >
                 <rect
-                  v-for="r in rows.filter((r) => r.inKey)"
+                  v-for="r in keyRows"
                   :key="'k' + r.m"
                   x="0"
                   :y="r.top"
@@ -165,7 +170,7 @@ function onClick(e) {
                 />
                 <line v-for="t in ticks" :key="'t' + t" :x1="x(t)" :x2="x(t)" y1="0" :y2="yRange.height" class="svg-grid" />
                 <line
-                  v-for="r in rows.filter((r) => r.isC)"
+                  v-for="r in cRows"
                   :key="'c' + r.m"
                   x1="0"
                   :x2="width"
@@ -175,7 +180,7 @@ function onClick(e) {
                 />
                 <path :d="path" class="contour" />
                 <template v-if="hover">
-                  <line :x1="hover.px" :x2="hover.px" y1="0" :y2="yRange.height" class="cross" />
+                  <line :x1="hover.px" :x2="hover.px" y1="0" :y2="yRange.height" class="svg-cursor" />
                   <circle v-if="hover.v !== null && hover.inRange" :cx="hover.px" :cy="y(hover.v)" r="5" class="cross-dot" />
                 </template>
               </svg>
@@ -184,13 +189,13 @@ function onClick(e) {
           </div>
 
           <!-- 右側頻率軸（跟左側音名同一列） -->
-          <div class="y-axis hz-axis" :style="{ width: HZ_W + 'px' }" aria-hidden="true">
+          <div class="chart-axis hz-axis" :style="{ width: HZ_W + 'px' }" aria-hidden="true">
             <div class="y-spacer hz-unit">Hz</div>
             <div class="y-labels" :style="{ height: yRange.height + 'px' }">
               <span
-                v-for="r in rows.filter((r) => r.label)"
+                v-for="r in labeledRows"
                 :key="r.m"
-                class="y-label"
+                class="axis-label"
                 :class="{ tonic: r.tonic }"
                 :style="{ top: r.top + yRange.rowH / 2 + 'px' }"
               >{{ r.hz }}</span>
@@ -225,17 +230,15 @@ function onClick(e) {
 </template>
 
 <style scoped>
-.chart-wrap {
-  position: relative;
+/* 放大後可以左右捲動 */
+.chart-plot {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.layout {
-  display: flex;
-}
-
-.y-axis {
-  flex-shrink: 0;
-  border-right: 1px solid var(--axis);
+.chart-inner {
+  /* 最右邊的刻度文字超出內容寬度時裁掉，避免整首時出現捲軸 */
+  overflow-x: clip;
 }
 
 /* 對齊時間刻度 */
@@ -247,47 +250,28 @@ function onClick(e) {
   position: relative;
 }
 
-.y-label {
-  position: absolute;
-  right: 8px;
-  transform: translateY(-50%);
-  font-size: 12px;
-  line-height: 1;
-  color: var(--muted);
-  white-space: nowrap;
+.note-axis .axis-label {
+  font-variant-numeric: normal;
 }
 
-.y-label.c {
+.axis-label.c {
   color: var(--text2);
 }
 
-.y-label.tonic {
+.axis-label.tonic {
   color: var(--text);
   font-weight: 700;
 }
 
-.plot-wrap {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.inner {
-  position: relative;
-  /* 最右邊的刻度文字超出內容寬度時裁掉，避免整首時出現捲軸 */
-  overflow-x: clip;
-}
-
+/* 右側頻率軸 */
 .hz-axis {
   border-right: none;
   border-left: 1px solid var(--axis);
 }
 
-.hz-axis .y-label {
+.hz-axis .axis-label {
   right: auto;
   left: 8px;
-  font-variant-numeric: tabular-nums;
 }
 
 .hz-unit {
@@ -323,12 +307,6 @@ function onClick(e) {
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
-}
-
-.cross {
-  stroke: var(--border-strong);
-  stroke-width: 1;
-  pointer-events: none;
 }
 
 .cross-dot {
