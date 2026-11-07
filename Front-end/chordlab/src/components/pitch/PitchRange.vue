@@ -1,9 +1,10 @@
 <script setup>
 /**
- * 旋律音域：最低音到最高音（排除最極端 1% 的偵測誤差）、最常出現的音，畫在鋼琴鍵盤上
+ * 旋律音域：最低音到最高音（排除最極端 1% 的偵測誤差），畫在鋼琴鍵盤上
+ * （最常出現的音在「音高占比」，這裡不重複）
  */
 import { computed } from 'vue'
-import { fmtHz } from '@/utils/music.js'
+import { fmtHz } from '@/utils/theory.js'
 
 const props = defineProps({
   // utils/pitch.js analyzePitch() 的結果（後端沒有音高資料時 ResultsPanel 不顯示這張卡）
@@ -21,7 +22,7 @@ const ready = computed(() => !!props.stats.low)
 // 鍵盤範圍：涵蓋音域的完整八度，至少兩個八度
 const keyboard = computed(() => {
   if (!ready.value) return null
-  const { low, high, top } = props.stats
+  const { low, high } = props.stats
   let firstOct = Math.floor(low.midi / 12)
   let lastOct = Math.floor(high.midi / 12)
   if (lastOct - firstOct < 1) lastOct = firstOct + 1
@@ -38,8 +39,7 @@ const keyboard = computed(() => {
       blacks.push({ m, x: (base + after + 1) * KEY_W - 7, inRange: m >= low.midi && m <= high.midi })
     }
   }
-  const all = [...whites, ...blacks.map((b) => ({ ...b, black: true }))]
-  return { whites, blacks, width: whites.length * KEY_W, topKey: all.find((k) => k.m === top.midi) }
+  return { whites, blacks, width: whites.length * KEY_W }
 })
 
 const keyCenter = (k) => (k.black ? k.x + 7 : k.x + KEY_W / 2)
@@ -60,7 +60,6 @@ const octaves = (semis) => (semis / 12).toFixed(1)
         <strong>{{ stats.low.name }} – {{ stats.high.name }}</strong>
         <span class="range-hz">{{ fmtHz(stats.low.hz) }} – {{ fmtHz(stats.high.hz) }}・{{ stats.rangeSemis }} 個半音（約 {{ octaves(stats.rangeSemis) }} 個八度）</span>
       </p>
-      <p class="top-note"><i class="dot-sw" aria-hidden="true"></i>最常出現 {{ stats.top.name }}（{{ fmtHz(stats.top.hz) }}，{{ Math.round(stats.top.share * 100) }}%）</p>
 
       <svg
         v-if="keyboard"
@@ -91,14 +90,6 @@ const octaves = (semis) => (semis / 12).toFixed(1)
           class="black"
           :class="{ in: k.inRange }"
         />
-        <!-- 最常出現的音 -->
-        <circle
-          v-if="keyboard.topKey"
-          :cx="keyCenter(keyboard.topKey)"
-          :cy="keyboard.topKey.black ? BLACK_H - 10 : KEY_H - 12"
-          r="6"
-          class="top-dot"
-        />
         <!-- C 的音名 -->
         <text v-for="k in keyboard.whites.filter((w) => w.label)" :key="'l' + k.m" :x="k.x + KEY_W / 2" :y="KEY_H + 16" text-anchor="middle" class="svg-axis-text">
           {{ k.label }}{{ k.label === 'C4' ? ' 中央C' : '' }}
@@ -123,15 +114,6 @@ const octaves = (semis) => (semis / 12).toFixed(1)
 
 .range-hz {
   font-size: 0.95rem;
-  color: var(--text2);
-}
-
-.top-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 0.25rem;
-  font-size: 0.9rem;
   color: var(--text2);
 }
 
@@ -160,21 +142,5 @@ const octaves = (semis) => (semis / 12).toFixed(1)
 
 .black.in {
   fill: var(--c-pitch);
-}
-
-.top-dot {
-  fill: #0f111a;
-  stroke: #ffffff;
-  stroke-width: 2;
-}
-
-.dot-sw {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  background: #0f111a;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #9ea5b9;
-  border-radius: 50%;
 }
 </style>

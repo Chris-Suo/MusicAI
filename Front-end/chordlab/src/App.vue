@@ -11,25 +11,20 @@ import ResultsPanel from '@/components/ResultsPanel.vue'
 import { analyzeAudio } from '@/utils/api.js'
 
 const selectedFile = ref(null)
-const isAnalyzing = ref(false)
+const analysisResult = ref(null)
 const failed = ref(false)
 const progress = ref(0)
 const progressLabel = ref('')
-const analysisResult = ref(null)
 // 每次分析完換一個 key，讓結果區（含播放器）整個重建
 const resultKey = ref(0)
 
-const PROGRESS_STEPS = [
-  '正在解析音訊波形...',
-  '提取頻率特徵...',
-  '辨識和弦進行...',
-  '計算統計數據...',
-  '整理分析結果...',
-]
+// 後端不回報進度，等待時每 0.5 秒走一步，走到 90% 停住等結果
+const PROGRESS_STEPS = ['正在解析音訊波形...', '提取頻率特徵...', '辨識和弦進行...', '計算統計數據...', '整理分析結果...']
+const STEP_MS = 500
+const STEP_PCT = 18
 
-function isWav(file) {
-  return file.name.toLowerCase().endsWith('.wav') || file.type === 'audio/wav'
-}
+const isWav = (file) => file.name.toLowerCase().endsWith('.wav') || file.type === 'audio/wav'
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 function onFileSelected(file) {
   if (!isWav(file)) {
@@ -41,37 +36,34 @@ function onFileSelected(file) {
 }
 
 async function analyze() {
-  if (!selectedFile.value) return
-
-  isAnalyzing.value = true
   failed.value = false
+  analysisResult.value = null
   progress.value = 0
   progressLabel.value = PROGRESS_STEPS[0]
-  analysisResult.value = null
 
-  // Simulate progress while waiting for API
   let step = 0
-  const interval = setInterval(() => {
+  const timer = setInterval(() => {
     step++
-    progress.value = step * 18
-    progressLabel.value = PROGRESS_STEPS[step] ?? PROGRESS_STEPS[PROGRESS_STEPS.length - 1]
-    if (step >= 5) clearInterval(interval)
-  }, 500)
+    progress.value = step * STEP_PCT
+    progressLabel.value = PROGRESS_STEPS[Math.min(step, PROGRESS_STEPS.length - 1)]
+    if (step >= PROGRESS_STEPS.length) clearInterval(timer)
+  }, STEP_MS)
 
+  let result
   try {
-    const result = await analyzeAudio(selectedFile.value)
-    clearInterval(interval)
-    progress.value = 100
-    await new Promise((r) => setTimeout(r, 300))
-    resultKey.value++
-    analysisResult.value = result
+    result = await analyzeAudio(selectedFile.value)
   } catch (err) {
-    clearInterval(interval)
-    console.error('Analysis failed:', err)
+    console.error('[ChordLab] 分析失敗：', err)
     failed.value = true
+    return
   } finally {
-    isAnalyzing.value = false
+    clearInterval(timer)
   }
+
+  progress.value = 100
+  await sleep(300) // 讓使用者看到進度條走滿
+  resultKey.value++
+  analysisResult.value = result
 }
 </script>
 

@@ -10,11 +10,12 @@ import TimeRuler from '@/components/common/TimeRuler.vue'
 import PlayHead from '@/components/common/PlayHead.vue'
 import { useTimeAxis } from '@/composables/useTimeAxis.js'
 import { usePlayback } from '@/composables/usePlayback.js'
-import { indexAt, median, percentile, fmtClock } from '@/utils/stats.js'
+import { median, percentile } from '@/utils/stats.js'
+import { indexAt, fmtClock } from '@/utils/time.js'
 
 const props = defineProps({
   beats: { type: Array, default: () => [] },
-  // ResultsPanel 算好的拍點統計（beatBpm、intervals、beatsPerBar…）
+  // utils/rhythm.js beatStats() 的結果
   rhythm: { type: Object, required: true },
   total: { type: Number, required: true },
 })
@@ -118,7 +119,7 @@ function onMove(e) {
 }
 
 function onSeek(e) {
-  pb?.seek(eventTime(e).t)
+  pb.seek(eventTime(e).t)
 }
 </script>
 
@@ -129,9 +130,9 @@ function onSeek(e) {
     </div>
 
     <div class="chart-wrap">
-      <div class="layout">
+      <div class="chart-layout">
         <!-- 固定的左側欄：分道名稱與 BPM 刻度 -->
-        <div class="gutter" :style="{ width: AXIS_W + 'px' }" aria-hidden="true">
+        <div class="chart-axis" :style="{ width: AXIS_W + 'px' }" aria-hidden="true">
           <div :style="{ height: RULER_H + 'px' }"></div>
           <div class="lane-name" :style="{ height: BEAT_H + 'px' }">小節</div>
           <div class="tempo-axis" :style="{ height: TEMPO_H + 'px' }">
@@ -139,15 +140,15 @@ function onSeek(e) {
             <span
               v-for="tk in tempoTicks"
               :key="tk.r"
-              class="tempo-tick"
+              class="axis-label"
               :class="{ mid: tk.r === 0 }"
               :style="{ top: tempoY(tk.bpm) - BEAT_H + 'px' }"
             >{{ Math.round(tk.bpm) }}</span>
           </div>
         </div>
 
-        <div ref="plotEl" class="plot-wrap">
-          <div class="inner">
+        <div ref="plotEl" class="chart-plot">
+          <div class="chart-inner">
             <TimeRuler :ticks="ticks" :px-per-sec="pxPerSec" />
             <svg
               :width="width"
@@ -183,7 +184,7 @@ function onSeek(e) {
               <polyline :points="tempoLine" class="tempo-line" />
 
               <!-- 滑鼠位置 -->
-              <line v-if="hover" :x1="hover.px" :x2="hover.px" y1="0" :y2="SVG_H" class="hover-line" />
+              <line v-if="hover" :x1="hover.px" :x2="hover.px" y1="0" :y2="SVG_H" class="svg-cursor" />
             </svg>
             <PlayHead :px-per-sec="pxPerSec" />
           </div>
@@ -206,19 +207,6 @@ function onSeek(e) {
 </template>
 
 <style scoped>
-.chart-wrap {
-  position: relative;
-}
-
-.layout {
-  display: flex;
-}
-
-.gutter {
-  flex-shrink: 0;
-  border-right: 1px solid var(--axis);
-}
-
 .lane-name {
   display: flex;
   align-items: center;
@@ -238,30 +226,9 @@ function onSeek(e) {
   height: auto;
 }
 
-.tempo-tick {
-  position: absolute;
-  right: 8px;
-  transform: translateY(-50%);
-  font-size: 12px;
-  line-height: 1;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.tempo-tick.mid {
+.axis-label.mid {
   color: var(--text);
   font-weight: 700;
-}
-
-.plot-wrap {
-  flex: 1;
-  min-width: 0;
-  /* 最右邊的刻度文字超出時裁掉 */
-  overflow: hidden;
-}
-
-.inner {
-  position: relative;
 }
 
 .track {
@@ -307,11 +274,5 @@ function onSeek(e) {
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
-}
-
-.hover-line {
-  stroke: var(--border-strong);
-  stroke-width: 1;
-  pointer-events: none;
 }
 </style>

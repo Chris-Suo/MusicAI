@@ -1,5 +1,5 @@
 /**
- * 數值與時間的共用小工具
+ * 數值統計：中位數、百分位數、占比排行
  */
 
 export function median(arr) {
@@ -16,59 +16,22 @@ export function percentile(sorted, p) {
   return sorted[i]
 }
 
-/** 已排序的時間陣列中，最後一個 <= t 的索引；都比 t 大時回傳 -1 */
-export function indexAt(sorted, t) {
-  let lo = 0
-  let hi = sorted.length - 1
-  let ans = -1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (sorted[mid] <= t + 1e-4) {
-      ans = mid
-      lo = mid + 1
-    } else hi = mid - 1
-  }
-  return ans
+/**
+ * 依占比由大到小排好的項目，取前幾名、其餘合併成「其他」
+ * - 只剩一項時直接列出，不合併成「其他 1 種」
+ * - minShare：占比太小的不單獨列
+ * @template {{ share: number }} T
+ * @param {T[]} sorted
+ * @returns {{ top: T[], rest: T[] }}
+ */
+export function splitTop(sorted, max = 6, minShare = 0) {
+  let n = Math.min(sorted.length, max)
+  while (n > 0 && sorted[n - 1].share < minShare) n--
+  if (sorted.length === n + 1 && sorted[n].share >= minShare) n++
+  return { top: sorted.slice(0, n), rest: sorted.slice(n) }
 }
 
-/** 依 start 排序的區段（{ start, dur }）中，包含 t 的那一段索引 */
-export function segmentAt(segments, t) {
-  let lo = 0
-  let hi = segments.length - 1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    const s = segments[mid]
-    if (t < s.start) hi = mid - 1
-    else if (t >= s.start + s.dur) lo = mid + 1
-    else return mid
-  }
-  return -1
-}
-
-export function pct(part, whole, digits = 0) {
-  if (!whole) return '0%'
-  return `${((part / whole) * 100).toFixed(digits)}%`
-}
-
-/** 秒 → '1:23.4' */
-export function fmtClock(sec) {
-  if (!Number.isFinite(sec)) return '0:00.0'
-  const m = Math.floor(sec / 60)
-  const s = (sec % 60).toFixed(1).padStart(4, '0')
-  return `${m}:${s}`
-}
-
-/** 時間刻度標籤：'15s'、'1:30' */
-export function fmtTick(sec) {
-  if (sec < 60) return (Number.isInteger(sec) ? sec : sec.toFixed(1)) + 's'
-  return Math.floor(sec / 60) + ':' + String(Math.round(sec % 60)).padStart(2, '0')
-}
-
-/** 時間軸刻度：挑一個讓標籤間距至少 minPx 的間隔 */
-export function timeTicks(total, pxPerSec, minPx = 72) {
-  const steps = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300]
-  const step = steps.find((s) => s * pxPerSec >= minPx) ?? 600
-  const ticks = []
-  for (let t = 0; t <= total + 1e-6; t += step) ticks.push(+t.toFixed(3))
-  return ticks
+/** 占比 → '17%'、'9.0%'（10% 以下多一位小數） */
+export function fmtPct(share) {
+  return `${(share * 100).toFixed(share >= 0.1 ? 0 : 1)}%`
 }

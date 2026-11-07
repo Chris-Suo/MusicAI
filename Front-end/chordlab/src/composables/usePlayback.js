@@ -97,6 +97,9 @@ export function createPlayback({ file }) {
   }
 }
 
+/** 取得 ResultsPanel 提供的播放器（只能在結果區裡的元件使用） */
 export function usePlayback() {
-  return inject(PLAYBACK_KEY, null)
+  const pb = inject(PLAYBACK_KEY, null)
+  if (!pb) throw new Error('usePlayback() 要在 ResultsPanel 裡使用')
+  return pb
 }

@@ -4,9 +4,10 @@
  */
 import { computed } from 'vue'
 import { lookupKeyMood } from '@/utils/keyMoodData.js'
-import { scaleNotes, keyNameZh } from '@/utils/music.js'
+import { scaleNotes, keyNameZh } from '@/utils/theory.js'
 
 const props = defineProps({
+  // utils/theory.js parseKey() 的結果
   keyInfo: { type: Object, default: null },
   // Essentia KeyExtractor 的 strength（0～1）；推估的調沒有
   confidence: { type: Number, default: null },
@@ -33,7 +34,7 @@ const meta = computed(() => {
     <div v-if="!keyInfo" class="note">無法判斷調性</div>
     <template v-else>
       <div class="key-main">
-        <span class="key-name">{{ keyInfo.name }}</span>
+        <span class="hero-value">{{ keyInfo.name }}</span>
         <span class="key-zh">{{ keyNameZh(keyInfo) }}</span>
       </div>
       <p v-if="meta" class="meta">{{ meta }}</p>
@@ -60,12 +61,6 @@ const meta = computed(() => {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 14px;
-}
-
-.key-name {
-  font-size: 2.6rem;
-  font-weight: 700;
-  line-height: 1.15;
 }
 
 .key-zh {
