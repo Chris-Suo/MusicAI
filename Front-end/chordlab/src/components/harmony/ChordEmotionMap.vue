@@ -1,17 +1,24 @@
 <script setup>
 /**
  * 和弦情緒軌跡
- * 使用 utils/chordEmotion.js：依和弦性質把每個和弦放到情緒輪座標上，依出現順序連成軌跡。
+ * 使用 utils/chordEmotion.js：依和弦性質把每個和弦放到情緒輪座標上，再連成軌跡。
+ * 軌跡有兩個版本，在下面「軌跡版本」那裡切換（註解掉一行、打開另一行）：
+ *   A. 和弦順序：每換一種和弦性質就是一步
+ *   B. 區間重心（目前使用）：每 15 秒一個區間，區間內和弦座標的 x、y 各自平均當作重心，一個區間一步；
+ *      播放時會用淡紅色畫出目前區間的圖形，數字點是各區間的重心
  * - 灰色曲線：整首歌出現過的移動（A → B），越粗代表出現越多次；曲線往行進方向的右邊彎，來回兩個方向不會疊在一起
- * - 播放時：紅點是目前的和弦，紅色箭頭是最近幾步的軌跡
+ * - 播放時：紅點是目前的和弦，紅色箭頭是最近幾步的軌跡；
+ *   換和弦時紅點依播放時間沿曲線慢慢移到新位置（不是一次跳過去），暫停時停在半路，跳轉時直接算出該在的位置
  * - 點右邊的清單：跳到下一次出現這種和弦的地方播放
+ * - 下方另一張卡（ChordEmotionList.vue）依順序列出畫軌跡用的座標與描述，用的是這裡的 path，版本會一起切換
  */
 import { ref, computed } from 'vue'
 import wheelUrl from '@/assets/emotion-wheel.webp'
-import { CHORD_EMOTIONS, buildEmotionPath } from '@/utils/chordEmotion.js'
+import { CHORD_EMOTIONS, buildEmotionPath, buildWindowPath, convexHull } from '@/utils/chordEmotion.js'
 import { prettyChord } from '@/utils/chords.js'
 import { indexAt } from '@/utils/time.js'
 import { usePlayback } from '@/composables/usePlayback.js'
+import ChordEmotionList from '@/components/harmony/ChordEmotionList.vue'
 
 const props = defineProps({
   timeline: { type: Array, required: true },
@@ -29,18 +36,47 @@ const py = (y) => SIZE / 2 - y * UNIT
 const TICKS = [-10, -5, 5, 10]
 // 播放時標出最近幾步
 const TRAIL = 4
+// 換和弦時移動的時間：這個和弦長度的 75%，最多 2.5 秒（和弦很短時移動得比較快）
+const MOVE_SHARE = 0.75
+const MOVE_MAX = 2.5
 
-const path = computed(() => buildEmotionPath(props.timeline))
+// ---------------------------------------------------------------------------
+// 軌跡版本：兩行保留一行，另一行註解掉
+// ---------------------------------------------------------------------------
+// A. 和弦順序（原本的版本）
+// const path = computed(() => buildEmotionPath(props.timeline))
+// B. 每 15 秒一個區間，取區間內和弦座標的重心：x、y 各自平均（區間長度改 utils/chordEmotion.js 的 WINDOW_SEC）
+const path = computed(() => buildWindowPath(props.timeline))
+
+const isWindowMode = computed(() => path.value.mode === 'window')
 const usageByKey = computed(() => new Map(path.value.usage.map((u) => [u.emo.key, u])))
 
-/** 往行進方向右邊彎的曲線；同一點（不會發生，保險起見）回傳空字串 */
-function curve(a, b, bend = 0.18) {
+/** 往行進方向右邊彎的二次曲線：起點、控制點、終點（SVG 座標） */
+function geom(a, b, bend = 0.18) {
   const x1 = px(a.x), y1 = py(a.y), x2 = px(b.x), y2 = py(b.y)
   const dx = x2 - x1, dy = y2 - y1
-  const len = Math.hypot(dx, dy)
-  if (!len) return ''
-  const cx = (x1 + x2) / 2 - (dy / len) * len * bend
-  const cy = (y1 + y2) / 2 + (dx / len) * len * bend
+  return { x1, y1, x2, y2, cx: (x1 + x2) / 2 - dy * bend, cy: (y1 + y2) / 2 + dx * bend }
+}
+
+/** 曲線上 t（0～1）的位置 */
+function pointOn(g, t) {
+  const u = 1 - t
+  return { x: u * u * g.x1 + 2 * u * t * g.cx + t * t * g.x2, y: u * u * g.y1 + 2 * u * t * g.cy + t * t * g.y2 }
+}
+
+/** 曲線從起點走到 t 的那一段（de Casteljau 切割） */
+function partialCurve(a, b, t) {
+  const g = geom(a, b)
+  const qx = g.x1 + (g.cx - g.x1) * t
+  const qy = g.y1 + (g.cy - g.y1) * t
+  const e = pointOn(g, t)
+  return `M${g.x1},${g.y1} Q${qx},${qy} ${e.x},${e.y}`
+}
+
+/** 完整曲線；同一點（不會發生，保險起見）回傳空字串 */
+function curve(a, b) {
+  const { x1, y1, x2, y2, cx, cy } = geom(a, b)
+  if (x1 === x2 && y1 === y2) return ''
   // 終點往回縮一點，箭頭才不會蓋在點上
   const ex = x2 - ((x2 - cx) / Math.hypot(x2 - cx, y2 - cy)) * 18
   const ey = y2 - ((y2 - cy) / Math.hypot(x2 - cx, y2 - cy)) * 18
@@ -52,7 +88,8 @@ const edges = computed(() =>
   path.value.edges.map((e) => ({
     key: e.from.key + '→' + e.to.key,
     d: curve(e.from, e.to),
-    width: 2 + 7 * Math.sqrt(e.count / maxCount.value),
+    // 區間版本每條只出現一次，用細線就好
+    width: maxCount.value > 1 ? 2 + 7 * Math.sqrt(e.count / maxCount.value) : 3.5,
     count: e.count,
   })),
 )
@@ -62,6 +99,11 @@ const usedPoints = computed(() =>
   path.value.usage.map((u) => ({ emo: u.emo, r: 11 + 16 * Math.sqrt(u.share) })),
 )
 const unusedPoints = computed(() => CHORD_EMOTIONS.filter((e) => !usageByKey.value.has(e.key)))
+// 軌跡上不是和弦性質本身的點（區間版本的重心），畫成有編號的小點
+const stepPoints = computed(() => {
+  const seen = new Set()
+  return path.value.steps.map((s) => s.emo).filter((e) => !usageByKey.value.has(e.key) && !seen.has(e.key) && seen.add(e.key))
+})
 
 // ---------------------------------------------------------------------------
 // 播放同步
@@ -70,6 +112,46 @@ const stepStarts = computed(() => path.value.steps.map((s) => s.start))
 const currentIndex = computed(() => (pb.active.value ? indexAt(stepStarts.value, pb.current.value) : -1))
 const currentStep = computed(() => path.value.steps[currentIndex.value] ?? null)
 
+// 使用者設定「減少動態效果」時直接跳到定位
+const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2)
+
+/** 從上一個和弦移到目前和弦走了多少（0～1，已套用緩動）；由播放時間算，暫停或跳轉都一致 */
+const moveProgress = computed(() => {
+  const i = currentIndex.value
+  if (i < 1 || reduceMotion) return 1
+  const step = path.value.steps[i]
+  const next = path.value.steps[i + 1]
+  const dur = (next ? next.start : step.end) - step.start
+  const moveTime = Math.min(MOVE_MAX, Math.max(0.05, dur * MOVE_SHARE))
+  const p = Math.min(1, Math.max(0, (pb.current.value - step.start) / moveTime))
+  return easeInOut(p)
+})
+
+// 目前用到的和弦性質：和弦順序版本就是那一種，區間版本是區間內的全部
+const currentMembers = computed(() => {
+  const emo = currentStep.value?.emo
+  return emo ? (emo.members ?? [emo]) : []
+})
+
+// 區間版本：目前區間的和弦座標圍成的圖形（2 個點時是一條線）
+const currentShape = computed(() => {
+  if (!isWindowMode.value || currentMembers.value.length < 2) return null
+  return convexHull(currentMembers.value)
+    .map((e) => `${px(e.x)},${py(e.y)}`)
+    .join(' ')
+})
+
+/** 紅點目前的位置（SVG 座標） */
+const markerPos = computed(() => {
+  const step = currentStep.value
+  if (!step) return null
+  const p = moveProgress.value
+  if (p >= 1) return { x: px(step.emo.x), y: py(step.emo.y) }
+  return pointOn(geom(path.value.steps[currentIndex.value - 1].emo, step.emo), p)
+})
+
 const trail = computed(() => {
   const i = currentIndex.value
   if (i < 1) return []
@@ -77,7 +159,14 @@ const trail = computed(() => {
   for (let k = Math.max(1, i - TRAIL + 1); k <= i; k++) {
     const a = path.value.steps[k - 1].emo
     const b = path.value.steps[k].emo
-    out.push({ key: k, d: curve(a, b), opacity: 1 - (i - k) * (0.7 / TRAIL) })
+    // 正在移動的那一步只畫到紅點的位置，到了才加箭頭
+    const moving = k === i && moveProgress.value < 1
+    out.push({
+      key: k,
+      d: moving ? partialCurve(a, b, moveProgress.value) : curve(a, b),
+      arrow: !moving,
+      opacity: 1 - (i - k) * (0.7 / TRAIL),
+    })
   }
   return out
 })
@@ -88,7 +177,12 @@ const chordNames = (labels) => labels.map((c) => prettyChord(c, props.keyInfo)).
 // 滑過提示、點清單跳播
 // ---------------------------------------------------------------------------
 const hoverKey = ref(null)
-const hoverEmo = computed(() => CHORD_EMOTIONS.find((e) => e.key === hoverKey.value) ?? null)
+const hoverEmo = computed(
+  () =>
+    CHORD_EMOTIONS.find((e) => e.key === hoverKey.value) ??
+    path.value.steps.find((s) => s.emo.key === hoverKey.value)?.emo ??
+    null,
+)
 const tipStyle = computed(() => {
   const e = hoverEmo.value
   if (!e) return {}
@@ -105,7 +199,8 @@ function jumpTo(u) {
 }
 
 const pct = (v) => (v >= 0.995 ? '100%' : v < 0.01 ? '<1%' : `${Math.round(v * 100)}%`)
-const coord = (e) => `(${e.x}, ${e.y})`
+const num = (v) => String(Math.round(v * 10) / 10)
+const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 </script>
 
 <template>
@@ -113,7 +208,10 @@ const coord = (e) => `(${e.x}, ${e.y})`
     <div class="card-head">
       <div>
         <h3 class="card-title">和弦情緒軌跡</h3>
-        <p class="card-desc">依和弦性質（大三、小七、屬七…）定位，不看根音；連續同性質的和弦算同一步</p>
+        <p v-if="isWindowMode" class="card-desc">
+          依和弦性質（大三、小七、屬七…）定位，不看根音；每 {{ path.windowSec }} 秒一個區間，取區間內和弦座標的平均位置
+        </p>
+        <p v-else class="card-desc">依和弦性質（大三、小七、屬七…）定位，不看根音；連續同性質的和弦算同一步</p>
       </div>
     </div>
 
@@ -163,6 +261,9 @@ const coord = (e) => `(${e.x}, ${e.y})`
             @pointerleave="hoverKey = null"
           />
 
+          <!-- 區間版本：目前區間的圖形 -->
+          <polygon v-if="currentShape" :points="currentShape" class="shape" />
+
           <!-- 整首歌的移動 -->
           <path
             v-for="e in edges"
@@ -175,14 +276,21 @@ const coord = (e) => `(${e.x}, ${e.y})`
           />
 
           <!-- 播放中：最近幾步 -->
-          <path v-for="t in trail" :key="t.key" :d="t.d" class="trail" :style="{ opacity: t.opacity }" marker-end="url(#emo-arrow-now)" />
+          <path
+            v-for="t in trail"
+            :key="t.key"
+            :d="t.d"
+            class="trail"
+            :style="{ opacity: t.opacity }"
+            :marker-end="t.arrow ? 'url(#emo-arrow-now)' : null"
+          />
 
           <!-- 用到的點 -->
           <g
             v-for="p in usedPoints"
             :key="p.emo.key"
             class="pt"
-            :class="{ hover: hoverKey === p.emo.key, now: currentStep?.emo === p.emo }"
+            :class="{ hover: hoverKey === p.emo.key, now: currentMembers.includes(p.emo) && moveProgress >= 1 }"
             @pointerenter="hoverKey = p.emo.key"
             @pointerleave="hoverKey = null"
           >
@@ -190,8 +298,21 @@ const coord = (e) => `(${e.x}, ${e.y})`
             <text :x="px(p.emo.x) + p.r + 8" :y="py(p.emo.y) + 9" class="pt-label">{{ p.emo.short }}</text>
           </g>
 
+          <!-- 區間重心 -->
+          <g
+            v-for="e in stepPoints"
+            :key="e.key"
+            class="pt-step"
+            :class="{ hover: hoverKey === e.key, now: currentStep?.emo === e && moveProgress >= 1 }"
+            @pointerenter="hoverKey = e.key"
+            @pointerleave="hoverKey = null"
+          >
+            <circle :cx="px(e.x)" :cy="py(e.y)" r="8" class="pt-step-dot" />
+            <text :x="px(e.x)" :y="py(e.y) - 15" text-anchor="middle" class="pt-step-label">{{ e.short }}</text>
+          </g>
+
           <!-- 目前的和弦 -->
-          <g v-if="currentStep" class="now-marker" :transform="`translate(${px(currentStep.emo.x)}, ${py(currentStep.emo.y)})`">
+          <g v-if="markerPos" class="now-marker" :transform="`translate(${markerPos.x}, ${markerPos.y})`">
             <circle r="22" class="pulse" />
             <circle r="13" class="now-dot" />
           </g>
@@ -203,6 +324,7 @@ const coord = (e) => `(${e.x}, ${e.y})`
           <span v-if="usageByKey.get(hoverEmo.key)" class="muted">
             占和弦時間 {{ pct(usageByKey.get(hoverEmo.key).share) }}，出現 {{ usageByKey.get(hoverEmo.key).count }} 次
           </span>
+          <span v-else-if="hoverEmo.window" class="muted">第 {{ hoverEmo.window }} 個區間</span>
           <span v-else class="muted">這首歌沒有用到</span>
         </div>
       </div>
@@ -215,7 +337,9 @@ const coord = (e) => `(${e.x}, ${e.y})`
               <span class="now-type">{{ currentStep.emo.name }} {{ coord(currentStep.emo) }}</span>
             </div>
             <p class="now-desc">{{ currentStep.emo.desc }}</p>
-            <p class="now-step">第 {{ currentIndex + 1 }} / {{ path.steps.length }} 步</p>
+            <p class="now-step">
+              <template v-if="isWindowMode">第 {{ currentStep.emo.window }} 個區間，</template>軌跡第 {{ currentIndex + 1 }} / {{ path.steps.length }} 步
+            </p>
           </template>
           <p v-else class="note">播放時會標出目前的和弦與最近 {{ TRAIL }} 步的軌跡</p>
         </div>
@@ -226,7 +350,7 @@ const coord = (e) => `(${e.x}, ${e.y})`
             <button
               type="button"
               class="usage-row"
-              :class="{ now: currentStep?.emo === u.emo }"
+              :class="{ now: currentMembers.includes(u.emo) }"
               :title="`${u.emo.desc}　點一下跳到下一次出現的地方`"
               @pointerenter="hoverKey = u.emo.key"
               @pointerleave="hoverKey = null"
@@ -247,6 +371,9 @@ const coord = (e) => `(${e.x}, ${e.y})`
       </div>
     </div>
   </div>
+
+  <!-- 軌跡座標說明（另一張卡，放在軌跡下方） -->
+  <ChordEmotionList v-if="path.steps.length" :path="path" :key-info="keyInfo" :current-index="currentIndex" />
 </template>
 
 <style scoped>
@@ -326,6 +453,44 @@ const coord = (e) => `(${e.x}, ${e.y})`
 
 .pt {
   cursor: help;
+}
+
+/* 區間版本：目前區間的圖形 */
+.shape {
+  fill: var(--playhead);
+  fill-opacity: 0.12;
+  stroke: var(--playhead);
+  stroke-opacity: 0.6;
+  stroke-width: 3;
+  stroke-dasharray: 10 8;
+  stroke-linejoin: round;
+}
+
+.pt-step {
+  cursor: help;
+}
+
+.pt-step-dot {
+  fill: #ffffff;
+  stroke: #2b2f45;
+  stroke-width: 3;
+}
+
+.pt-step.hover .pt-step-dot,
+.pt-step.now .pt-step-dot {
+  fill: #4b36d6;
+  stroke: #ffffff;
+}
+
+.pt-step-label {
+  fill: #2b2f45;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 6px;
+  stroke-linejoin: round;
 }
 
 .pt-dot {

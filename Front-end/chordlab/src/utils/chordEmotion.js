@@ -6,6 +6,10 @@
  * - 連續出現同一種性質（例如 C → G）合併成一步，軌跡上不會原地打轉
  * - 沒有定義座標的性質（例如 sus4）不畫進軌跡，另外列出占比
  *
+ * 兩種軌跡（回傳格式相同，ChordEmotionMap.vue 改一行就能切換）：
+ * - buildEmotionPath()：依和弦出現順序，每換一種性質就是一步
+ * - buildWindowPath()：每 15 秒一個區間，取區間內所有和弦座標的重心（x、y 各自平均），一個區間一步
+ *
  * 座標範圍約 -10～10，背景圖（assets/emotion-wheel.webp）裁成正方形、中心是原點，
  * ±10 剛好落在外圈上，整張圖涵蓋 ±12（見 ChordEmotionMap.vue 的 RANGE）
  */
@@ -132,4 +136,113 @@ export function buildEmotionPath(timeline) {
       .sort((a, b) => b.share - a.share),
     unmapped: [...unmapped].map(([quality, d]) => ({ quality, share: share(d) })).sort((a, b) => b.share - a.share),
   }
+}
+
+// ---------------------------------------------------------------------------
+// 區間重心軌跡
+// ---------------------------------------------------------------------------
+
+/** 每個區間幾秒 */
+export const WINDOW_SEC = 15
+
+const round2 = (v) => Math.round(v * 100) / 100
+const fmtSec = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
+
+/**
+ * 凸包（Andrew monotone chain），逆時針；共線的點會去掉
+ * 只用來在畫面上畫出區間內的點圍成的範圍，不影響重心
+ * @param {{ x: number, y: number }[]} points
+ */
+export function convexHull(points) {
+  const pts = [...new Map(points.map((p) => [`${p.x},${p.y}`, p])).values()].sort((a, b) => a.x - b.x || a.y - b.y)
+  if (pts.length < 3) return pts
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  const lower = []
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop()
+    lower.push(p)
+  }
+  const upper = []
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i]
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop()
+    upper.push(p)
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1))
+}
+
+/**
+ * 重心：所有點的 x 平均、y 平均
+ * @param {{ x: number, y: number }[]} points
+ */
+export function centroid(points) {
+  const n = points.length
+  return {
+    x: points.reduce((sum, p) => sum + p.x, 0) / n,
+    y: points.reduce((sum, p) => sum + p.y, 0) / n,
+  }
+}
+
+/**
+ * 每 windowSec 秒一個區間：區間內出現過的和弦性質（有重疊就算；同一種性質只算一個點，不論長短、次數），
+ * 取這些點的重心（x 相加 ÷ 點數、y 相加 ÷ 點數）當作這個區間的位置，再依區間順序連成軌跡
+ * - 沒有和弦（或都沒有座標）的區間跳過
+ * - 相鄰區間重心完全相同時合併成一步
+ * - usage、unmapped 跟 buildEmotionPath() 一樣是整首歌的和弦性質統計
+ *
+ * 回傳格式同 buildEmotionPath()，另外：
+ *   steps[].emo 是區間重心：{ key, x, y, name, short, desc, window, members }
+ *     members：區間內用到的和弦性質（CHORD_EMOTIONS 的項目）
+ *   mode: 'window'、windowSec
+ */
+export function buildWindowPath(timeline, windowSec = WINDOW_SEC) {
+  const base = buildEmotionPath(timeline)
+  const segs = []
+  for (const seg of timeline) {
+    const emo = chordEmotion(seg.chord)
+    if (emo) segs.push({ ...seg, emo })
+  }
+  const songEnd = segs.reduce((m, s) => Math.max(m, s.start + s.dur), 0)
+
+  const steps = []
+  for (let w = 0; w * windowSec < songEnd; w++) {
+    const ws = w * windowSec
+    const we = ws + windowSec
+    const inWin = segs.filter((s) => s.start < we && s.start + s.dur > ws)
+    if (!inWin.length) continue
+
+    const members = [...new Set(inWin.map((s) => s.emo))]
+    const c = centroid(members)
+    const chords = [...new Set(inWin.map((s) => s.chord))]
+    const x = round2(c.x)
+    const y = round2(c.y)
+
+    const last = steps[steps.length - 1]
+    if (last && last.emo.x === x && last.emo.y === y && last.end >= ws) {
+      last.end = Math.min(we, songEnd)
+      for (const ch of chords) if (!last.chords.includes(ch)) last.chords.push(ch)
+      continue
+    }
+
+    steps.push({
+      emo: {
+        key: `win-${w}`,
+        x,
+        y,
+        window: w + 1,
+        name: `${fmtSec(ws)}–${fmtSec(Math.min(we, songEnd))} 的重心`,
+        short: String(w + 1),
+        desc: `區間內的和弦性質：${members.map((e) => e.short).join('、')}`,
+        members,
+      },
+      start: ws,
+      end: Math.min(we, songEnd),
+      chords,
+    })
+  }
+
+  const edges = []
+  for (let i = 1; i < steps.length; i++) edges.push({ from: steps[i - 1].emo, to: steps[i].emo, count: 1 })
+
+  return { ...base, steps, edges, mode: 'window', windowSec }
 }
