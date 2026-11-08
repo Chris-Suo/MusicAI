@@ -56,7 +56,7 @@ def run_btc(audio_bytes: bytes, filename: str) -> dict:
             cwd=str(BTC_DIR),
             capture_output=True,
             text=True,
-            timeout=120,      # 最多等 2 分鐘
+            timeout=240,      # 最多等 4 分鐘（15 分鐘的音檔）；nginx 的 proxy_read_timeout 要比這個長
         )
 
         if result.returncode != 0:

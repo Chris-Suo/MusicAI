@@ -8,11 +8,13 @@ import AppHeader from '@/components/AppHeader.vue'
 import UploadZone from '@/components/UploadZone.vue'
 import AnalysisStatus from '@/components/AnalysisStatus.vue'
 import ResultsPanel from '@/components/ResultsPanel.vue'
-import { analyzeAudio } from '@/utils/api.js'
+import { analyzeAudio, checkUpload, UploadRejectedError } from '@/utils/api.js'
 
 const selectedFile = ref(null)
 const analysisResult = ref(null)
 const failed = ref(false)
+// 失敗原因（後端拒絕檔案時才有）
+const errorText = ref('')
 const progress = ref(0)
 const progressLabel = ref('')
 // 每次分析完換一個 key，讓結果區（含播放器）整個重建
@@ -26,9 +28,14 @@ const STEP_PCT = 18
 const isWav = (file) => file.name.toLowerCase().endsWith('.wav') || file.type === 'audio/wav'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-function onFileSelected(file) {
+async function onFileSelected(file) {
   if (!isWav(file)) {
     alert('請上傳 .wav 格式的音訊檔案')
+    return
+  }
+  const problem = await checkUpload(file)
+  if (problem) {
+    alert(problem)
     return
   }
   selectedFile.value = file
@@ -37,6 +44,7 @@ function onFileSelected(file) {
 
 async function analyze() {
   failed.value = false
+  errorText.value = ''
   analysisResult.value = null
   progress.value = 0
   progressLabel.value = PROGRESS_STEPS[0]
@@ -55,6 +63,7 @@ async function analyze() {
   } catch (err) {
     console.error('[ChordLab] 分析失敗：', err)
     failed.value = true
+    if (err instanceof UploadRejectedError) errorText.value = err.message
     return
   } finally {
     clearInterval(timer)
@@ -80,6 +89,7 @@ async function analyze() {
         :progress="progress"
         :label="progressLabel"
         :failed="failed"
+        :error-text="errorText"
         @retry="analyze"
         @file-selected="onFileSelected"
       />

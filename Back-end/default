@@ -22,6 +22,7 @@ server {
 	listen 80 default_server;
 	listen [::]:80 default_server;
 
+	# 整個請求的上限（含 multipart 標頭）；檔案本身的上限是 99 MB，見 backend/main.py
 	client_max_body_size 100M;
 	# SSL configuration
 	#
@@ -74,6 +75,9 @@ server {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        # 分析可能要好幾分鐘（BTC／Essentia 各最多 240 秒，同時跑）；預設 60 秒會先回 504
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     	}
 }
 

@@ -69,7 +69,7 @@ PROJECT_ROOT = HERE.parent.parent  # .../MusicAI
 BACKEND_DIR = HERE.parent / "backend"
 FIG_PNG = PROJECT_ROOT / "Front-end" / "chordlab" / "src" / "assets" / "fig.png"
 
-MAX_UPLOAD = 50 * 1024 * 1024  # 與 main.py 相同：50 MB
+MAX_UPLOAD = 99 * 1024 * 1024  # 與 main.py 相同：99 MB
 
 # ---------------------------------------------------------------------------
 # 重用真後端的解析函式（確保輸出格式一致）
@@ -554,7 +554,7 @@ class Handler(BaseHTTPRequestHandler):
         if not filename.lower().endswith(".wav"):
             return self._send(400, {"detail": "只接受 .wav 檔案"})
         if len(content) > MAX_UPLOAD or scenario == "error413":
-            return self._send(413, {"detail": "檔案過大（上限 50 MB）"})
+            return self._send(413, {"detail": "檔案過大（上限 99 MB）"})
         if scenario == "error500":
             return self._send(500, {"detail": "BTC failed:\nTraceback (most recent call last):\n  (mock) RuntimeError: CUDA out of memory"})
         if scenario == "timeout504":

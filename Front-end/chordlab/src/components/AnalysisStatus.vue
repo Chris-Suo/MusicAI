@@ -10,6 +10,8 @@ defineProps({
   progress: { type: Number, default: 0 },
   label: { type: String, default: '' },
   failed: { type: Boolean, default: false },
+  // 失敗原因（例如「檔案過大」）；沒有時顯示「分析失敗，請重試」
+  errorText: { type: String, default: '' },
 })
 
 defineEmits(['retry', 'file-selected'])
@@ -21,7 +23,7 @@ defineEmits(['retry', 'file-selected'])
     <div class="body">
       <div class="name">{{ fileName }}</div>
       <template v-if="failed">
-        <div class="label">分析失敗，請重試</div>
+        <div class="label">{{ errorText || '分析失敗，請重試' }}</div>
       </template>
       <template v-else>
         <div class="track" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析進度">
@@ -31,7 +33,8 @@ defineEmits(['retry', 'file-selected'])
       </template>
     </div>
     <template v-if="failed">
-      <button class="btn primary" type="button" @click="$emit('retry')">重試</button>
+      <!-- 檔案本身被拒絕時重試也沒用，只留換檔案 -->
+      <button v-if="!errorText" class="btn primary" type="button" @click="$emit('retry')">重試</button>
       <FilePickButton @pick="$emit('file-selected', $event)" />
     </template>
   </div>
