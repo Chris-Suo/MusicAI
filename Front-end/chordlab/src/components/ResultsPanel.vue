@@ -14,6 +14,7 @@ import PlayerBar from '@/components/PlayerBar.vue'
 import KeyCard from '@/components/harmony/KeyCard.vue'
 import ChordShare from '@/components/harmony/ChordShare.vue'
 import KeyAnalysis from '@/components/harmony/KeyAnalysis.vue'
+import ChordEmotionMap from '@/components/harmony/ChordEmotionMap.vue'
 import TuningCard from '@/components/pitch/TuningCard.vue'
 import PitchRange from '@/components/pitch/PitchRange.vue'
 import PitchShare from '@/components/pitch/PitchShare.vue'
@@ -86,6 +87,7 @@ const tabs = computed(() => {
         <div v-else class="card empty-card"><p class="note">整首都沒有偵測到和弦</p></div>
       </div>
       <KeyAnalysis v-if="analysis.hasChords" :timeline="analysis.timeline" :key-info="analysis.key" :beats="analysis.beats" :beats-per-bar="analysis.rhythm.beatsPerBar" />
+      <ChordEmotionMap v-if="analysis.hasChords" :timeline="analysis.timeline" :key-info="analysis.key" />
     </section>
 
     <section v-show="tab === 'pitch'" id="panel-pitch" class="panel" role="tabpanel" aria-labelledby="tab-pitch">
