@@ -7,13 +7,16 @@
  * 右上角可切換級數寫法（簡譜／羅馬數字）與每格長度（1 小節／半小節）。
  */
 import { ref, computed, watch } from 'vue'
-import { analyzeProgression, numberToRoman, FUNCTION_GROUP } from '@/utils/progression.js'
-import { prettyChord as prettyChordIn } from '@/utils/music.js'
+import { analyzeProgression } from '@/utils/progression.js'
+import { numberToRoman, functionOf, prettyChord } from '@/utils/chords.js'
+import { relativeMajor } from '@/utils/theory.js'
+import { segmentAt, fmtClock } from '@/utils/time.js'
 import { usePlayback } from '@/composables/usePlayback.js'
 
 const props = defineProps({
   timeline: { type: Array, required: true },
-  keyName: { type: String, default: '' },
+  // theory.js parseKey() 的結果（有和弦時一定有調性）
+  keyInfo: { type: Object, required: true },
   beats: { type: Array, default: () => [] },
   beatsPerBar: { type: Number, default: 4 },
 })
@@ -27,7 +30,7 @@ const selected = ref(null) // { type: 'known' | 'loop', key }
 const result = computed(() =>
   analyzeProgression({
     timeline: props.timeline,
-    key: props.keyName,
+    key: props.keyInfo,
     beats: props.beats,
     beatsPerBar: props.beatsPerBar,
     unit: unit.value,
@@ -37,41 +40,24 @@ const result = computed(() =>
 // ---------------------------------------------------------------------------
 // 顯示用資料
 // ---------------------------------------------------------------------------
-const PITCH_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-
 const desc = computed(() => {
   const cell = { bar: '每格一小節', 'half-bar': '每格半小節', chord: '沒有拍點資料，每格是一個和弦' }[result.value.unit] ?? ''
-  const k = result.value.key
   // 簡譜在小調以關係大調計算（流行歌的習慣）；羅馬數字以實際主音計算
-  const rel = k?.mode === 'minor' && notation.value === 'number' ? `；級數以關係大調 ${PITCH_NAMES[(k.tonic + 3) % 12]} major 計算` : ''
+  const rel = props.keyInfo.mode === 'minor' && notation.value === 'number' ? `；級數以關係大調 ${relativeMajor(props.keyInfo).name} 計算` : ''
   return cell + rel
 })
 
-const mainLoop = computed(() => result.value.summary?.mainLoop ?? null)
+const mainLoop = computed(() => result.value.loops[0] ?? null)
 const mainKey = computed(() => mainLoop.value?.degrees.join('-'))
 
 // 跟主要循環是同一個進行的就不重複列
 const known = computed(() => result.value.known.filter((k) => k.id !== mainLoop.value?.family?.id))
 
-const degreesText = (degrees) =>
-  (notation.value === 'roman' ? degrees.map((d) => numberToRoman(d, result.value.key)) : degrees).join(' – ')
+const degreesText = (degrees) => (notation.value === 'roman' ? degrees.map((d) => numberToRoman(d, props.keyInfo)) : degrees).join(' – ')
 
 const degreeText = (deg) => (!deg ? 'N' : notation.value === 'roman' ? deg.roman : deg.label)
 
-function functionOf(deg) {
-  if (!deg) return 'none'
-  if (deg.kind !== 'diatonic') return 'out'
-  return FUNCTION_GROUP[deg.number] ?? 'out'
-}
-
-function prettyChord(label) {
-  return prettyChordIn(label, result.value.key)
-}
-
-function fmtTime(sec) {
-  const m = Math.floor(sec / 60)
-  return `${m}:${(sec % 60).toFixed(1).padStart(4, '0')}`
-}
+const chordName = (label) => prettyChord(label, props.keyInfo)
 
 // 4 小節一組（一個樂句）：半小節時 8 格一組
 const barGroups = computed(() => {
@@ -108,31 +94,19 @@ function isSelected(type, key) {
 // ---------------------------------------------------------------------------
 // 播放同步
 // ---------------------------------------------------------------------------
-const currentCell = computed(() => {
-  if (!pb?.active.value) return -1
-  const t = pb.current.value
-  const bars = result.value.bars
-  let lo = 0
-  let hi = bars.length - 1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (t < bars[mid].start) hi = mid - 1
-    else if (t >= bars[mid].end) lo = mid + 1
-    else return bars[mid].index
-  }
-  return -1
-})
+// 正在播放的格子（格子的 index 就是在 bars 裡的位置）
+const currentCell = computed(() => (pb.active.value ? segmentAt(result.value.bars, pb.current.value, (b) => b.end) : -1))
 
 function cellTitle(b) {
-  const alt = b.alt ? `（另有 ${prettyChord(b.alt)}）` : ''
+  const alt = b.alt ? `（另有 ${chordName(b.alt)}）` : ''
   const sec = b.degree?.secondaryLabel ? `　${b.degree.secondaryLabel}` : ''
   const no = result.value.unit === 'bar' ? `第 ${b.index + 1} 小節` : `第 ${b.index + 1} 格`
-  return `${no}　${fmtTime(b.start)}　${prettyChord(b.chord)}${alt}${sec}`
+  return `${no}　${fmtClock(b.start)}　${chordName(b.chord)}${alt}${sec}`
 }
 
 // 換資料或換每格長度時清掉選取（格子編號會變）
 watch(
-  () => [props.timeline, props.keyName, unit.value],
+  () => [props.timeline, props.keyInfo, unit.value],
   () => {
     selected.value = null
   },
@@ -202,11 +176,11 @@ watch(
             :class="['fn-' + functionOf(b.degree), { hl: highlightedBars.has(b.index), dim: highlightedBars.size && !highlightedBars.has(b.index), now: currentCell === b.index }]"
             :title="cellTitle(b)"
             :aria-label="`${cellTitle(b)}，級數 ${degreeText(b.degree)}，點一下從這裡播放`"
-            @click="pb?.seek(b.start)"
+            @click="pb.seek(b.start)"
           >
             <span class="bar-no">{{ b.index + 1 }}</span>
             <span class="deg" :class="{ long: degreeText(b.degree).length > 3 }">{{ degreeText(b.degree) }}</span>
-            <span class="chord">{{ prettyChord(b.chord) }}</span>
+            <span class="chord">{{ chordName(b.chord) }}</span>
           </button>
         </div>
       </div>

@@ -4,7 +4,7 @@
  * - 縮放時保持畫面中央（播放中則以播放位置）不動；播放時播放頭跑出畫面會自動跟著捲
  */
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { timeTicks } from '@/utils/stats.js'
+import { timeTicks } from '@/utils/time.js'
 import { usePlayback } from '@/composables/usePlayback.js'
 
 export const ZOOMS = [1, 2, 4, 8]
@@ -36,7 +36,7 @@ export function useTimeAxis(total) {
     zoomIdx.value = Math.min(ZOOMS.length - 1, Math.max(0, zoomIdx.value + delta))
     await nextTick()
     if (el) {
-      const anchor = pb?.playing.value ? pb.current.value : centerT
+      const anchor = pb.playing.value ? pb.current.value : centerT
       el.scrollLeft = Math.max(0, x(anchor) - el.clientWidth / 2)
     }
   }
@@ -59,16 +59,15 @@ export function useTimeAxis(total) {
     return { left: left + offset + 'px', transform: flip ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)' }
   }
 
-  if (pb) {
-    watch(pb.current, (t) => {
-      const el = plotEl.value
-      if (!el || !pb.playing.value || el.scrollWidth <= el.clientWidth) return
-      const px = x(t)
-      if (px < el.scrollLeft + 20 || px > el.scrollLeft + el.clientWidth - 60) {
-        el.scrollLeft = Math.max(0, px - el.clientWidth * 0.25)
-      }
-    })
-  }
+  // 播放時播放頭快跑出畫面，就把畫面捲過去
+  watch(pb.current, (t) => {
+    const el = plotEl.value
+    if (!el || !pb.playing.value || el.scrollWidth <= el.clientWidth) return
+    const px = x(t)
+    if (px < el.scrollLeft + 20 || px > el.scrollLeft + el.clientWidth - 60) {
+      el.scrollLeft = Math.max(0, px - el.clientWidth * 0.25)
+    }
+  })
 
   onMounted(() => {
     if (!plotEl.value) return

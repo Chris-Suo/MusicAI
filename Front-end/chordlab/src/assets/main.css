@@ -39,21 +39,23 @@
   --f-D: #e87ba4;
   --f-out: #2a78d6;
   --f-none: #9aa0b2;
-  /* 色塊內的文字：黃色上用深色字，其餘白字 */
-  --on-f-T: #ffffff;
-  --on-f-S: #0f111a;
-  --on-f-D: #0f111a;
-  --on-f-out: #ffffff;
+  /* 級數格的底色：功能色混多少進表面色 */
   --tint: 20%;
 
   /* 單一資料系列 */
   --c-pitch: #6250d6;
   --c-tempo: #eb6834;
   --c-loud: #2a78d6;
-  --c-loud-1: #86b6ef;
-  --c-loud-2: #3987e5;
-  --c-loud-3: #1c5cab;
+  /* 次要／對照的系列（例如 BPM 占比的偏慢、偏快） */
   --c-muted-series: #b4b9c8;
+  --c-muted-series-2: #7d8499;
+  /* 音區（八度）：低音區、中低、中音、中高、高音區各一色，相鄰兩區色相差很遠（色盲模擬檢查過）；
+     極低／極高音區用灰色 */
+  --c-reg-1: #2a78d6;
+  --c-reg-2: #1baf7a;
+  --c-reg-3: #6250d6;
+  --c-reg-4: #eda100;
+  --c-reg-5: #e87ba4;
 
   --playhead: #e34948;
 
@@ -98,19 +100,18 @@
   --f-D: #d55181;
   --f-out: #3987e5;
   --f-none: #6b7186;
-  --on-f-T: #ffffff;
-  --on-f-S: #ffffff;
-  --on-f-D: #ffffff;
-  --on-f-out: #ffffff;
   --tint: 30%;
 
   --c-pitch: #9085e9;
   --c-tempo: #d95926;
   --c-loud: #3987e5;
-  --c-loud-1: #184f95;
-  --c-loud-2: #2a78d6;
-  --c-loud-3: #86b6ef;
   --c-muted-series: #4a5065;
+  --c-muted-series-2: #79819a;
+  --c-reg-1: #3987e5;
+  --c-reg-2: #199e70;
+  --c-reg-3: #9085e9;
+  --c-reg-4: #c98500;
+  --c-reg-5: #d55181;
 
   --playhead: #e66767;
 
@@ -281,11 +282,11 @@ button {
 }
 
 /* 和聲功能色：.fn-T / .fn-S / .fn-D / .fn-out / .fn-none 設定 --fc，元件裡用 var(--fc) */
-.fn-T { --fc: var(--f-T); --on-fc: var(--on-f-T); }
-.fn-S { --fc: var(--f-S); --on-fc: var(--on-f-S); }
-.fn-D { --fc: var(--f-D); --on-fc: var(--on-f-D); }
-.fn-out { --fc: var(--f-out); --on-fc: var(--on-f-out); }
-.fn-none { --fc: var(--f-none); --on-fc: #ffffff; }
+.fn-T { --fc: var(--f-T); }
+.fn-S { --fc: var(--f-S); }
+.fn-D { --fc: var(--f-D); }
+.fn-out { --fc: var(--f-out); }
+.fn-none { --fc: var(--f-none); }
 
 /* 圖例 */
 .legend {
@@ -337,6 +338,43 @@ button {
   color: var(--muted);
 }
 
+/* 時間軸圖表（音高曲線、節拍時間軸、響度曲線）：左邊固定的軸＋右邊的圖表 */
+.chart-wrap {
+  position: relative;
+}
+
+.chart-layout {
+  display: flex;
+}
+
+.chart-axis {
+  flex-shrink: 0;
+  border-right: 1px solid var(--axis);
+}
+
+.chart-plot {
+  flex: 1;
+  min-width: 0;
+  /* 最右邊的刻度文字超出時裁掉 */
+  overflow: hidden;
+}
+
+.chart-inner {
+  position: relative;
+}
+
+/* 軸上的刻度文字（垂直置中在刻度位置） */
+.axis-label {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 /* SVG 圖表共用 */
 .svg-grid {
   stroke: var(--grid);
@@ -347,6 +385,34 @@ button {
   fill: var(--muted);
   font-size: 12px;
   font-family: var(--font-sans);
+}
+
+/* 滑鼠位置的垂直線 */
+.svg-cursor {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* 卡片的主要數字（A4 頻率、BPM、LUFS） */
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.hero-value {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.hero-unit {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text2);
+  margin-left: 6px;
 }
 
 /* 小標籤 */
@@ -360,15 +426,6 @@ button {
   padding: 2px 12px;
   font-size: 0.875rem;
   color: var(--text);
-}
-
-.visually-hidden {
-  position: absolute !important;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

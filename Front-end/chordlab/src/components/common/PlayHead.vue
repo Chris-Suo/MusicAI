@@ -12,11 +12,11 @@ const props = defineProps({
 })
 
 const pb = usePlayback()
-const style = computed(() => ({ transform: `translateX(${props.offset + (pb?.current.value ?? 0) * props.pxPerSec}px)` }))
+const style = computed(() => ({ transform: `translateX(${props.offset + (pb.current.value) * props.pxPerSec}px)` }))
 </script>
 
 <template>
-  <div v-if="pb?.active.value" class="playhead" :style="style" aria-hidden="true"></div>
+  <div v-if="pb.active.value" class="playhead" :style="style" aria-hidden="true"></div>
 </template>
 
 <style scoped>

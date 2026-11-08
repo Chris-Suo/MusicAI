@@ -1,14 +1,14 @@
 <script setup>
 /**
  * 調音基準：整首歌的 A4 實際頻率，與標準 440 Hz 差幾音分
- * A4 頻率由音分換算（見 music.js a4FromCents）
+ * A4 頻率由音分換算（見 utils/theory.js a4FromCents）
  */
 import { computed } from 'vue'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { a4FromCents } from '@/utils/music.js'
 
 const props = defineProps({
-  tuning: { type: Object, default: null },
+  // utils/analysis.js 整理好的 { cents, a4, statusText }；cents 為 null 表示沒有調音資料
+  tuning: { type: Object, required: true },
 })
 
 const RANGE = 50
@@ -17,12 +17,7 @@ const H = 74
 const BAR_Y = 30
 const BAR_H = 18
 
-const cents = computed(() => {
-  const c = props.tuning?.tuning_offset_cents
-  return Number.isFinite(c) ? c : null
-})
-
-const hz = computed(() => a4FromCents(cents.value))
+const cents = computed(() => props.tuning.cents)
 
 const status = computed(() => {
   const c = cents.value
@@ -57,10 +52,10 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
       </div>
     </div>
 
-    <div v-if="cents === null" class="note">沒有調音資料（{{ tuning?.status_text ?? 'BTC 沒有回傳' }}）</div>
+    <div v-if="cents === null" class="note">沒有調音資料（{{ tuning.statusText ?? 'BTC 沒有回傳' }}）</div>
     <template v-else>
       <div class="hero">
-        <span class="hz">A4 = {{ hz.toFixed(1) }}<span class="unit">Hz</span></span>
+        <span class="hero-value">A4 = {{ tuning.a4.toFixed(1) }}<span class="hero-unit">Hz</span></span>
         <span class="status" :class="status.cls">
           <AppIcon :name="status.icon" :size="18" />{{ status.text }}
         </span>
@@ -92,24 +87,10 @@ const fmtCents = (c) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${Math.abs(c).toFixe
 </template>
 
 <style scoped>
+/* 數字旁邊有狀態標籤，垂直置中對齊 */
 .hero {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-}
-
-.hz {
-  font-size: 2.6rem;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.unit {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--text2);
-  margin-left: 6px;
 }
 
 .status {
