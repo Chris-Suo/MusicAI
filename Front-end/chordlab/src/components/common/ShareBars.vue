@@ -2,7 +2,8 @@
 /**
  * 占比圖（和弦占比、音高占比、BPM 占比共用，三張卡長得一樣）
  * - 上方：100% 堆疊長條＋圖例（每一類占多少），也是這張卡的顏色圖例
- * - 下方：前幾名項目的橫條，顏色跟所屬的類別一致；「其他」是好幾項的加總，只寫數字不畫橫條
+ * - 下方：每個項目一條橫條，顏色跟所屬的類別一致
+ *   橫條照 rows 的順序畫，順序由各卡決定（和弦依音階、音高依 Hz、BPM 依速度，都是由低到高）
  */
 import { computed } from 'vue'
 import { fmtPct } from '@/utils/stats.js'
@@ -10,15 +11,15 @@ import { fmtPct } from '@/utils/stats.js'
 const props = defineProps({
   // [{ key, label, sub?, share, color, muted? }]；muted＝灰底（例如「無和弦」）
   groups: { type: Array, required: true },
-  // [{ key, name, sub?, share, color, title?, other? }]；other＝「其他 N 種」加總列
+  // [{ key, name, sub?, share, color, title? }]
   rows: { type: Array, default: () => [] },
   // 堆疊長條的無障礙說明開頭，例如「和聲功能」
   label: { type: String, default: '' },
 })
 
-// 橫條長度以最大的一項為滿格（「其他」不算）
+// 橫條長度以最大的一項為滿格
 const barRows = computed(() => {
-  const max = Math.max(...props.rows.filter((r) => !r.other).map((r) => r.share), 0.01)
+  const max = Math.max(...props.rows.map((r) => r.share), 0.01)
   return props.rows.map((r) => ({ ...r, bar: (r.share / max) * 100 }))
 })
 
@@ -44,9 +45,9 @@ const stackLabel = computed(() => `${props.label} ` + props.groups.map((g) => `$
   </div>
 
   <div v-if="barRows.length" class="rows" role="table" :aria-label="label">
-    <div v-for="r in barRows" :key="r.key" class="row" :class="{ other: r.other }" role="row" :title="r.title">
+    <div v-for="r in barRows" :key="r.key" class="row" role="row" :title="r.title">
       <span class="name" role="cell">{{ r.name }}<span v-if="r.sub" class="sub">{{ r.sub }}</span></span>
-      <span class="track" role="cell" aria-hidden="true"><span v-if="!r.other" class="bar" :style="{ width: r.bar + '%', background: r.color }"></span></span>
+      <span class="track" role="cell" aria-hidden="true"><span class="bar" :style="{ width: r.bar + '%', background: r.color }"></span></span>
       <strong class="num" role="cell">{{ fmtPct(r.share) }}</strong>
     </div>
   </div>
@@ -91,7 +92,7 @@ const stackLabel = computed(() => `${props.label} ` + props.groups.map((g) => `$
   font-variant-numeric: tabular-nums;
 }
 
-/* 排行：名稱欄依最長的名稱對齊 */
+/* 橫條：名稱欄依最長的名稱對齊 */
 .rows {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr) 52px;
@@ -135,11 +136,5 @@ const stackLabel = computed(() => `${props.label} ` + props.groups.map((g) => `$
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.row.other .name,
-.row.other .num {
-  font-weight: 500;
-  color: var(--muted);
 }
 </style>

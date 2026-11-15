@@ -2,12 +2,11 @@
 /**
  * 和弦占比：依出現時間計算
  * - 上方：和聲功能（主／下屬／屬／調外）占整首歌的比例，也是這個分頁的顏色圖例
- * - 下方：前幾名和弦的占比，其餘合併成「其他」
+ * - 下方：每個和弦的占比，依音階由低到高排（簡譜 1 → 7）
  */
 import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
 import { FUNCTION_NAMES, chordShares } from '@/utils/chords.js'
-import { splitTop } from '@/utils/stats.js'
 
 const props = defineProps({
   timeline: { type: Array, required: true },
@@ -26,15 +25,13 @@ const groups = computed(() =>
     .filter((g) => (g.key === 'none' ? g.share >= 0.01 : g.share > 0)),
 )
 
-const rows = computed(() => {
-  const { top, rest } = splitTop(shares.value.byChord)
-  const out = top.map(({ chord, share }) => {
-    const info = props.chordInfo.get(chord)
-    return { key: chord, name: info.name, sub: info.degree?.label ?? '', share, color: fnColor(info.fn), title: info.fnName }
-  })
-  if (rest.length) out.push({ key: 'other', name: `其他 ${rest.length} 種`, share: rest.reduce((s, r) => s + r.share, 0), other: true })
-  return out
-})
+// 每個和弦一條，依音階由低到高排（簡譜 1 → 7）；同一級的維持占比多的在前
+const rows = computed(() =>
+  shares.value.byChord
+    .map(({ chord, share }) => ({ chord, share, info: props.chordInfo.get(chord) }))
+    .sort((a, b) => (a.info.degree?.semitone ?? 12) - (b.info.degree?.semitone ?? 12))
+    .map(({ chord, share, info }) => ({ key: chord, name: info.name, sub: info.degree?.label ?? '', share, color: fnColor(info.fn), title: info.fnName })),
+)
 </script>
 
 <template>

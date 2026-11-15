@@ -188,6 +188,7 @@ export function chordToDegree(chord, key) {
 
   return {
     number, // '6'、'b7'
+    semitone: fromMajor, // 根音在簡譜的 1 上方幾個半音（0～11），用來依音階由低到高排序
     label: number + degreeSuffix(chord, diatonic), // '6'、'3M'、'4m'
     roman, // 'vi'、'V7'、'bVII'
     family: chord.family,
