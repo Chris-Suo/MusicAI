@@ -4,8 +4,8 @@
  * 使用 utils/chordEmotion.js：依和弦性質把每個和弦放到情緒輪座標上，再連成軌跡。
  * 軌跡有兩個版本，在下面「軌跡版本」那裡切換（註解掉一行、打開另一行）：
  *   A. 和弦順序：每換一種和弦性質就是一步
- *   B. 區間重心（目前使用）：每 15 秒一個區間，區間內和弦座標的 x、y 各自平均當作重心，一個區間一步；
- *      播放時會用淡紅色畫出目前區間的圖形，數字點是各區間的重心
+ *   B. 區間平均座標（目前使用）：每 15 秒一個區間，區間內和弦座標的 x、y 各自平均，得到平均座標，一個區間一步；
+ *      播放時會用淡紅色畫出目前區間的圖形，數字點是各區間的平均座標
  * - 灰色曲線：整首歌出現過的移動（A → B），越粗代表出現越多次；曲線往行進方向的右邊彎，來回兩個方向不會疊在一起
  * - 播放時：紅點是目前的和弦，紅色箭頭是最近幾步的軌跡；
  *   換和弦時紅點依播放時間沿曲線慢慢移到新位置（不是一次跳過去），暫停時停在半路，跳轉時直接算出該在的位置
@@ -45,8 +45,8 @@ const MOVE_MAX = 2.5
 // ---------------------------------------------------------------------------
 // A. 和弦順序（原本的版本）
 // const path = computed(() => buildEmotionPath(props.timeline))
-// B. 每 15 秒一個區間，取區間內和弦座標的重心：x、y 各自平均（區間長度改 utils/chordEmotion.js 的 WINDOW_SEC）
-const path = computed(() => buildWindowPath(props.timeline))
+// B. 每 15 秒一個區間，取區間內和弦座標的平均座標：x、y 各自平均（區間長度改 utils/chordEmotion.js 的 WINDOW_SEC）
+ const path = computed(() => buildWindowPath(props.timeline))
 
 const isWindowMode = computed(() => path.value.mode === 'window')
 const usageByKey = computed(() => new Map(path.value.usage.map((u) => [u.emo.key, u])))
@@ -99,7 +99,7 @@ const usedPoints = computed(() =>
   path.value.usage.map((u) => ({ emo: u.emo, r: 11 + 16 * Math.sqrt(u.share) })),
 )
 const unusedPoints = computed(() => CHORD_EMOTIONS.filter((e) => !usageByKey.value.has(e.key)))
-// 軌跡上不是和弦性質本身的點（區間版本的重心），畫成有編號的小點
+// 軌跡上不是和弦性質本身的點（區間版本的平均座標），畫成有編號的小點
 const stepPoints = computed(() => {
   const seen = new Set()
   return path.value.steps.map((s) => s.emo).filter((e) => !usageByKey.value.has(e.key) && !seen.has(e.key) && seen.add(e.key))
@@ -298,7 +298,7 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
             <text :x="px(p.emo.x) + p.r + 8" :y="py(p.emo.y) + 9" class="pt-label">{{ p.emo.short }}</text>
           </g>
 
-          <!-- 區間重心 -->
+          <!-- 區間平均座標 -->
           <g
             v-for="e in stepPoints"
             :key="e.key"

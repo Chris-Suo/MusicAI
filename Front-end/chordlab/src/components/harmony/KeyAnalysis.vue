@@ -97,10 +97,19 @@ function isSelected(type, key) {
 // 正在播放的格子（格子的 index 就是在 bars 裡的位置）
 const currentCell = computed(() => (pb.active.value ? segmentAt(result.value.bars, pb.current.value, (b) => b.end) : -1))
 
+// 格子編號：半小節時顯示「1-A、1-B、2-A、2-B…」（每小節前半是 A、後半是 B）
+function barLabel(b) {
+  if (result.value.unit !== 'half-bar') return String(b.index + 1)
+  return `${Math.floor(b.index / 2) + 1}-${b.index % 2 === 0 ? 'A' : 'B'}`
+}
+
 function cellTitle(b) {
   const alt = b.alt ? `（另有 ${chordName(b.alt)}）` : ''
   const sec = b.degree?.secondaryLabel ? `　${b.degree.secondaryLabel}` : ''
-  const no = result.value.unit === 'bar' ? `第 ${b.index + 1} 小節` : `第 ${b.index + 1} 格`
+  const no = {
+    bar: `第 ${b.index + 1} 小節`,
+    'half-bar': `第 ${barLabel(b)} 半小節`,
+  }[result.value.unit] ?? `第 ${b.index + 1} 格`
   return `${no}　${fmtClock(b.start)}　${chordName(b.chord)}${alt}${sec}`
 }
 
@@ -178,7 +187,7 @@ watch(
             :aria-label="`${cellTitle(b)}，級數 ${degreeText(b.degree)}，點一下從這裡播放`"
             @click="pb.seek(b.start)"
           >
-            <span class="bar-no">{{ b.index + 1 }}</span>
+            <span class="bar-no">{{ barLabel(b) }}</span>
             <span class="deg" :class="{ long: degreeText(b.degree).length > 3 }">{{ degreeText(b.degree) }}</span>
             <span class="chord">{{ chordName(b.chord) }}</span>
           </button>

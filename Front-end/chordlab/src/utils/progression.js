@@ -10,7 +10,7 @@
  *     有弱起拍的歌曲小節會整個偏移。
  *   - 結果品質取決於 BTC 和弦辨識、Essentia 調性與拍點的準確度。
  */
-import { parseChord, chordToDegree, FUNCTION_GROUP } from '@/utils/chords.js'
+import { parseChord, chordToDegree } from '@/utils/chords.js'
 import { median } from '@/utils/stats.js'
 
 /**
@@ -111,43 +111,25 @@ function tokenMatches(token, deg) {
   return !fam || deg.family === fam
 }
 
-// 模糊比對時，不同的那個和弦必須跟原本的和弦屬於同一個功能（例如 6 被辨識成 3）
-function similarFunction(token, deg) {
-  if (!deg) return false
-  const want = FUNCTION_GROUP[token.split(':')[0]]
-  return !!want && FUNCTION_GROUP[deg.number] === want
-}
-
 /** 一次出現涵蓋的小節範圍 */
 const occurrence = (runs, from, to) => ({ startBar: runs[from].startBar, endBar: runs[to].endBar })
 
 /**
  * 在和弦變換序列（runs）上比對字典
- * 4 個和弦以上的進行允許 1 個和弦不同，
- * 但不同的和弦必須是同功能的代理和弦（例如 vi ↔ iii），且不能是第一個或最後一個
+ * 每個級數都要完全對上才算（不接受代理和弦，例如 1-3-4-5 不算 50 年代進行 1-6-4-5）
  */
 function findKnown(runs) {
   const candidates = []
   for (const p of KNOWN_PROGRESSIONS) {
     const n = p.degrees.length
-    const allowMiss = n >= 4 ? 1 : 0
     for (let i = 0; i + n <= runs.length; i++) {
-      let miss = 0
-      let missAt = -1
-      for (let k = 0; k < n && miss <= allowMiss; k++) {
-        if (!tokenMatches(p.degrees[k], runs[i + k].degree)) {
-          miss++
-          missAt = k
-          if (!similarFunction(p.degrees[k], runs[i + k].degree)) miss = Infinity
-        }
+      if (p.degrees.every((token, k) => tokenMatches(token, runs[i + k].degree))) {
+        candidates.push({ pattern: p, from: i, to: i + n - 1 })
       }
-      // 第一個與最後一個和弦必須對上，避免太寬鬆
-      if (miss > allowMiss || (miss && (missAt === 0 || missAt === n - 1))) continue
-      candidates.push({ pattern: p, from: i, to: i + n - 1, exact: miss === 0 })
     }
   }
-  // 精確優先、長的優先、位置先的優先；挑不重疊的
-  candidates.sort((a, b) => b.exact - a.exact || b.to - b.from - (a.to - a.from) || a.from - b.from)
+  // 長的優先、位置先的優先；挑不重疊的
+  candidates.sort((a, b) => b.to - b.from - (a.to - a.from) || a.from - b.from)
   const used = new Array(runs.length).fill(false)
   const picked = []
   for (const c of candidates) {
