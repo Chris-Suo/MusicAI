@@ -230,9 +230,10 @@ export function buildWindowPath(timeline, windowSec = WINDOW_SEC) {
         x,
         y,
         window: w + 1,
+        // name、desc 會直接顯示在畫面上；x、y 的數值由 ChordEmotionMap.vue 自己接在 name 後面
         name: `${fmtSec(ws)}–${fmtSec(Math.min(we, songEnd))} 的平均座標`,
         short: String(w + 1),
-        desc: `區間內的和弦性質：${members.map((e) => e.short).join('、')}`,
+        desc: `和弦性質：${members.map((e) => e.name).join('、')}`,
         members,
       },
       start: ws,

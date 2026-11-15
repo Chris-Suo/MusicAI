@@ -1,10 +1,15 @@
 <script setup>
 /**
- * 軌跡座標說明：把「和弦情緒軌跡」用來畫軌跡的每個座標點依順序列出來，附上對應的描述
- * - 由 ChordEmotionMap.vue 放在軌跡卡片下方，path 也由它傳進來，所以兩種軌跡版本會跟著切換：
- *   A. 和弦順序：每一步是一種和弦性質，描述就是那種性質的描述
- *   B. 區間平均座標：每一步是一個區間的平均座標，列出區間內每種和弦性質的座標與描述
- * - 播放時目前那一步會亮起來，清單會自己捲到那裡；點一列從那一步開始播放
+ * 軌跡逐段明細：把「和弦情緒軌跡」的每一步依時間順序列出來
+ * - 由 ChordEmotionMap.vue 放在軌跡卡片下方，path 由它傳進來，兩種軌跡版本都適用：
+ *   A. 和弦順序：一步是一種和弦性質
+ *   B. 區間平均座標：一步是一個區間，可能同時有好幾種性質
+ * - 左邊的編號對應軌跡圖上的數字點
+ * - 播放時目前那一段會亮起來，清單會自己捲到那裡；點一列從那一段開始播放
+ *
+ * 這裡只回答「什麼時候、彈了什麼、算哪種性質」。
+ * 每種性質的文字說明在軌跡卡右邊的清單，不在這裡重複（原本每一段都重印一次，
+ * 同樣一句「純粹的陽光，極度穩定」會出現十幾次）。座標數值同樣不顯示。
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import { prettyChord } from '@/utils/chords.js'
@@ -20,26 +25,21 @@ const props = defineProps({
 
 const pb = usePlayback()
 
-const isWindowMode = computed(() => props.path.mode === 'window')
-
-const num = (v) => String(Math.round(v * 10) / 10)
-const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 const clock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
-const chordNames = (labels) => labels.map((c) => prettyChord(c, props.keyInfo)).join('、')
 
 const rows = computed(() =>
   props.path.steps.map((s, i) => ({
     i,
     start: s.start,
+    from: clock(s.start),
     time: `${clock(s.start)}–${clock(s.end)}`,
-    coord: coord(s.emo),
-    chords: chordNames(s.chords),
-    // 區間版本：區間內每種和弦性質；和弦順序版本：就是這一步的那一種
-    members: (s.emo.members ?? [s.emo]).map((e) => ({ key: e.key, name: e.name, coord: coord(e), desc: e.desc })),
+    chords: s.chords.map((c) => prettyChord(c, props.keyInfo)).join('、'),
+    // 區間版本：區間內用到的每種性質；和弦順序版本：就是這一步的那一種
+    types: (s.emo.members ?? [s.emo]).map((e) => e.name).join('・'),
   })),
 )
 
-// 播放時把目前那一步捲到清單上方附近（只捲清單本身，不動整個頁面）
+// 播放時把目前那一段捲到清單上方附近（只捲清單本身，不動整個頁面）
 const listEl = ref(null)
 watch(
   () => props.currentIndex,
@@ -61,13 +61,10 @@ watch(
   <div class="card">
     <div class="card-head">
       <div>
-        <h3 class="card-title">軌跡座標說明</h3>
-        <p v-if="isWindowMode" class="card-desc">
-          每 {{ path.windowSec }} 秒一個區間，座標是區間內和弦性質的平均位置；下面列出區間內每種和弦性質的座標與描述
-        </p>
-        <p v-else class="card-desc">依和弦出現順序，每換一種和弦性質就是一步</p>
+        <h3 class="card-title">軌跡逐段明細</h3>
+        <p class="card-desc">編號對應上面軌跡圖的數字點・點一段從那裡開始播放</p>
       </div>
-      <span class="count">共 {{ rows.length }} 個座標點</span>
+      <span class="count">共 {{ rows.length }} 段</span>
     </div>
 
     <ol ref="listEl" class="steps">
@@ -77,31 +74,15 @@ watch(
           class="step"
           :class="{ now: r.i === currentIndex }"
           :aria-current="r.i === currentIndex ? 'step' : null"
-          :title="`點一下從 ${r.time.split('–')[0]} 開始播放`"
+          :aria-label="`第 ${r.i + 1} 段，${r.time}，${r.chords}，${r.types}，點一下從 ${r.from} 開始播放`"
           @click="pb.seek(r.start)"
         >
           <span class="no">{{ r.i + 1 }}</span>
           <span class="main">
-            <span class="head">
-              <span class="coord">{{ r.coord }}</span>
-              <span class="time">{{ r.time }}</span>
-              <span class="chords">{{ r.chords }}</span>
-            </span>
-
-            <!-- 和弦順序版本：一種性質，直接寫名稱與描述 -->
-            <span v-if="!isWindowMode" class="desc">
-              <strong>{{ r.members[0].name }}</strong>　{{ r.members[0].desc }}
-            </span>
-
-            <!-- 區間版本：區間內每種性質各一行 -->
-            <span v-else class="members">
-              <span v-for="m in r.members" :key="m.key" class="member">
-                <span class="m-name">{{ m.name }}</span>
-                <span class="m-coord">{{ m.coord }}</span>
-                <span class="m-desc">{{ m.desc }}</span>
-              </span>
-            </span>
+            <span class="chords">{{ r.chords }}</span>
+            <span class="types">{{ r.types }}</span>
           </span>
+          <span class="time">{{ r.time }}</span>
         </button>
       </li>
     </ol>
@@ -120,8 +101,8 @@ watch(
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 560px;
+  gap: 4px;
+  max-height: 420px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -129,14 +110,14 @@ watch(
 .step {
   width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 5px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.6rem 0.85rem;
+  padding: 0.5rem 0.85rem;
   color: var(--text);
   transition: border-color 0.15s, background 0.15s;
 }
@@ -153,13 +134,13 @@ watch(
 
 .no {
   flex-shrink: 0;
-  min-width: 28px;
-  height: 28px;
-  border-radius: 14px;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   background: var(--surface3);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -169,70 +150,47 @@ watch(
   color: #ffffff;
 }
 
+/* 和弦在上、性質在下；時間靠右對齊 */
 .main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  gap: 1px;
 }
 
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 12px;
+.chords {
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-.coord {
-  font-family: var(--font-mono);
-  font-weight: 700;
+.types {
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .time {
+  flex-shrink: 0;
   font-size: 0.85rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.chords {
-  font-size: 0.9rem;
-  color: var(--text2);
-}
-
-.desc {
-  font-size: 0.95rem;
-}
-
-.members {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.member {
-  display: grid;
-  grid-template-columns: 8.5em 6em 1fr;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-
-.m-name {
-  font-weight: 600;
-}
-
-.m-coord {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-@media (max-width: 640px) {
-  .member {
-    grid-template-columns: auto auto;
+/* 窄螢幕：和弦名稱會被右邊的時間擠到換行，改成時間自己一行（跟編號同一列、靠右） */
+@media (max-width: 560px) {
+  .step {
+    flex-wrap: wrap;
+    row-gap: 2px;
   }
 
-  .m-desc {
-    grid-column: 1 / -1;
+  .time {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .main {
+    order: 3;
+    flex-basis: 100%;
   }
 }
 </style>

@@ -10,7 +10,11 @@
  * - 播放時：紅點是目前的和弦，紅色箭頭是最近幾步的軌跡；
  *   換和弦時紅點依播放時間沿曲線慢慢移到新位置（不是一次跳過去），暫停時停在半路，跳轉時直接算出該在的位置
  * - 點右邊的清單：跳到下一次出現這種和弦的地方播放
- * - 下方另一張卡（ChordEmotionList.vue）依順序列出畫軌跡用的座標與描述，用的是這裡的 path，版本會一起切換
+ * - 下方另一張卡（ChordEmotionList.vue）依時間順序列出每一段用了哪些和弦與性質，用的是這裡的 path
+ *
+ * x、y 的數值出現在右邊的性質清單、「目前這一段」與滑過的提示。
+ * 性質的座標是固定值（大三和弦永遠是 8, 5）；區間點是區間內所有和弦座標的平均，所以會有小數。
+ * 每種性質的文字說明只在右邊清單出現一次，不在逐段明細重印。
  */
 import { ref, computed } from 'vue'
 import wheelUrl from '@/assets/emotion-wheel.webp'
@@ -33,7 +37,6 @@ const RANGE = 12
 const UNIT = SIZE / 2 / RANGE
 const px = (x) => SIZE / 2 + x * UNIT
 const py = (y) => SIZE / 2 - y * UNIT
-const TICKS = [-10, -5, 5, 10]
 // 播放時標出最近幾步
 const TRAIL = 4
 // 換和弦時移動的時間：這個和弦長度的 75%，最多 2.5 秒（和弦很短時移動得比較快）
@@ -46,7 +49,7 @@ const MOVE_MAX = 2.5
 // A. 和弦順序（原本的版本）
 // const path = computed(() => buildEmotionPath(props.timeline))
 // B. 每 15 秒一個區間，取區間內和弦座標的平均座標：x、y 各自平均（區間長度改 utils/chordEmotion.js 的 WINDOW_SEC）
- const path = computed(() => buildWindowPath(props.timeline))
+const path = computed(() => buildWindowPath(props.timeline))
 
 const isWindowMode = computed(() => path.value.mode === 'window')
 const usageByKey = computed(() => new Map(path.value.usage.map((u) => [u.emo.key, u])))
@@ -192,6 +195,18 @@ const tipStyle = computed(() => {
   return { left: `${left}%`, top: `${top}%`, transform: `translate(${left > 55 ? 'calc(-100% - 16px)' : '16px'}, -50%)` }
 })
 
+/**
+ * 沒有定義情緒座標的和弦性質（BTC 會輸出的 14 種裡只有 sus4 沒有定義，見 chordEmotion.js 的 CHORD_EMOTIONS）
+ * 這些和弦畫不進軌跡，也不算進上面的占比，所以要說一句，否則上面的百分比加起來不到 100%
+ */
+const unmappedText = computed(() => {
+  const list = path.value.unmapped
+  if (!list.length) return ''
+  const total = list.reduce((s, u) => s + u.share, 0)
+  const names = list.map((u) => u.quality).join('、')
+  return `這首歌有 ${pct(total)} 的時間是 ${names} 和弦，情緒輪上還沒有${list.length > 1 ? '它們' : '它'}的位置，所以沒有算進上面的比例`
+})
+
 function jumpTo(u) {
   const t = pb.current.value
   const next = u.starts.find((s) => s > t + 0.05) ?? u.starts[0]
@@ -199,6 +214,7 @@ function jumpTo(u) {
 }
 
 const pct = (v) => (v >= 0.995 ? '100%' : v < 0.01 ? '<1%' : `${Math.round(v * 100)}%`)
+// 座標取到小數一位；區間點是區間內所有和弦座標的平均，所以會有小數
 const num = (v) => String(Math.round(v * 10) / 10)
 const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 </script>
@@ -208,10 +224,9 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
     <div class="card-head">
       <div>
         <h3 class="card-title">和弦情緒軌跡</h3>
-        <p v-if="isWindowMode" class="card-desc">
-          依和弦性質（大三、小七、屬七…）定位，不看根音；每 {{ path.windowSec }} 秒一個區間，取區間內和弦座標的平均位置
+        <p class="card-desc">
+          依和弦性質定位，不看根音<template v-if="isWindowMode">・每 {{ path.windowSec }} 秒一段</template>
         </p>
-        <p v-else class="card-desc">依和弦性質（大三、小七、屬七…）定位，不看根音；連續同性質的和弦算同一步</p>
       </div>
     </div>
 
@@ -236,16 +251,10 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 
           <image :href="wheelUrl" x="0" y="0" :width="SIZE" :height="SIZE" class="wheel" />
 
-          <!-- 座標軸 -->
+          <!-- 中心十字：只用來看出原點與四個象限，不標刻度 -->
           <g class="axes" aria-hidden="true">
             <line :x1="px(-RANGE + 0.5)" :y1="py(0)" :x2="px(RANGE - 0.5)" :y2="py(0)" />
             <line :x1="px(0)" :y1="py(-RANGE + 0.5)" :x2="px(0)" :y2="py(RANGE - 0.5)" />
-            <template v-for="t in TICKS" :key="t">
-              <line :x1="px(t)" :y1="py(0) - 7" :x2="px(t)" :y2="py(0) + 7" />
-              <line :x1="px(0) - 7" :y1="py(t)" :x2="px(0) + 7" :y2="py(t)" />
-              <text :x="px(t)" :y="py(0) + 30" text-anchor="middle">{{ t }}</text>
-              <text :x="px(0) - 14" :y="py(t) + 8" text-anchor="end">{{ t }}</text>
-            </template>
           </g>
 
           <!-- 沒用到的定義點 -->
@@ -324,7 +333,7 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
           <span v-if="usageByKey.get(hoverEmo.key)" class="muted">
             占和弦時間 {{ pct(usageByKey.get(hoverEmo.key).share) }}，出現 {{ usageByKey.get(hoverEmo.key).count }} 次
           </span>
-          <span v-else-if="hoverEmo.window" class="muted">第 {{ hoverEmo.window }} 個區間</span>
+          <span v-else-if="hoverEmo.window" class="muted">第 {{ hoverEmo.window }} 段</span>
           <span v-else class="muted">這首歌沒有用到</span>
         </div>
       </div>
@@ -337,13 +346,12 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
               <span class="now-type">{{ currentStep.emo.name }} {{ coord(currentStep.emo) }}</span>
             </div>
             <p class="now-desc">{{ currentStep.emo.desc }}</p>
-            <p class="now-step">
-              <template v-if="isWindowMode">第 {{ currentStep.emo.window }} 個區間，</template>軌跡第 {{ currentIndex + 1 }} / {{ path.steps.length }} 步
-            </p>
+            <p class="now-step">第 {{ currentIndex + 1 }} / {{ path.steps.length }} 段</p>
           </template>
-          <p v-else class="note">播放時會標出目前的和弦與最近 {{ TRAIL }} 步的軌跡</p>
+          <p v-else class="note">播放時這裡會顯示目前的和弦</p>
         </div>
 
+        <!-- 用到的和弦性質：每種性質的說明只在這裡出現一次 -->
         <div class="sub-title">用到的和弦性質</div>
         <ul class="usage">
           <li v-for="u in path.usage" :key="u.emo.key">
@@ -351,28 +359,29 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
               type="button"
               class="usage-row"
               :class="{ now: currentMembers.includes(u.emo) }"
-              :title="`${u.emo.desc}　點一下跳到下一次出現的地方`"
+              title="點一下跳到下一次出現的地方"
               @pointerenter="hoverKey = u.emo.key"
               @pointerleave="hoverKey = null"
               @focus="hoverKey = u.emo.key"
               @blur="hoverKey = null"
               @click="jumpTo(u)"
             >
-              <span class="u-name">{{ u.emo.name }}</span>
-              <span class="u-coord">{{ coord(u.emo) }}</span>
-              <span class="u-bar"><span :style="{ width: `${Math.max(2, u.share * 100)}%` }" /></span>
-              <span class="u-share">{{ pct(u.share) }}</span>
+              <span class="u-top">
+                <span class="u-name">{{ u.emo.name }}</span>
+                <span class="u-coord">{{ coord(u.emo) }}</span>
+                <span class="u-bar"><span :style="{ width: `${Math.max(2, u.share * 100)}%` }" /></span>
+                <span class="u-share">{{ pct(u.share) }}</span>
+              </span>
+              <span class="u-desc">{{ u.emo.desc }}</span>
             </button>
           </li>
         </ul>
-        <p v-if="path.unmapped.length" class="note unmapped">
-          沒有座標、未畫入：{{ path.unmapped.map((u) => `${u.quality}（${pct(u.share)}）`).join('、') }}
-        </p>
+        <p v-if="unmappedText" class="note unmapped">{{ unmappedText }}</p>
       </div>
     </div>
   </div>
 
-  <!-- 軌跡座標說明（另一張卡，放在軌跡下方） -->
+  <!-- 軌跡逐段明細（另一張卡，放在軌跡下方） -->
   <ChordEmotionList v-if="path.steps.length" :path="path" :key-info="keyInfo" :current-index="currentIndex" />
 </template>
 
@@ -405,12 +414,7 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 .axes line {
   stroke: #4a4f63;
   stroke-width: 2;
-}
-
-.axes text {
-  fill: #4a4f63;
-  font-size: 22px;
-  font-family: var(--font-sans);
+  opacity: 0.45;
 }
 
 .pt-unused {
@@ -555,7 +559,7 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
   border-left: 5px solid var(--playhead);
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
-  min-height: 120px;
+  min-height: 104px;
 }
 
 .now-box.empty {
@@ -602,16 +606,29 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 
 .usage-row {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--text);
+}
+
+.u-top {
   display: grid;
   grid-template-columns: auto auto 1fr 3.2em;
   align-items: center;
   gap: 10px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  text-align: left;
-  color: var(--text);
+}
+
+.u-coord {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .usage-row:hover {
@@ -628,11 +645,10 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
   white-space: nowrap;
 }
 
-.u-coord {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
+.u-desc {
+  font-size: 0.85rem;
   color: var(--muted);
-  white-space: nowrap;
+  line-height: 1.45;
 }
 
 .u-bar {
