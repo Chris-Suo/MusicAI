@@ -97,10 +97,10 @@ function isSelected(type, key) {
 // 正在播放的格子（格子的 index 就是在 bars 裡的位置）
 const currentCell = computed(() => (pb.active.value ? segmentAt(result.value.bars, pb.current.value, (b) => b.end) : -1))
 
-// 格子編號：半小節時顯示「1-A、1-B、2-A、2-B…」（每小節前半是 A、後半是 B）
+// 格子編號：半小節時顯示「1-1、1-2、2-1、2-2…」（每小節前半是 1、後半是 2）
 function barLabel(b) {
   if (result.value.unit !== 'half-bar') return String(b.index + 1)
-  return `${Math.floor(b.index / 2) + 1}-${b.index % 2 === 0 ? 'A' : 'B'}`
+  return `${Math.floor(b.index / 2) + 1}-${(b.index % 2) + 1}`
 }
 
 function cellTitle(b) {

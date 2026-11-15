@@ -2,12 +2,12 @@
 /**
  * BPM 占比：每一拍換算成 BPM，依時間統計，跟和弦占比同一種圖
  * - 上方：偏慢／穩定（主速度 ±3% 以內）／偏快 的比例
- * - 下方：最常出現的 BPM（區間寬約主速度的 2%），1% 以下的不列
+ * - 下方：出現過的每個 BPM（區間寬約主速度的 2%），由慢到快排
  */
 import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
 import { tempoDistribution } from '@/utils/rhythm.js'
-import { splitTop, fmtPct } from '@/utils/stats.js'
+import { fmtPct } from '@/utils/stats.js'
 
 const props = defineProps({
   // utils/rhythm.js beatStats() 的結果
@@ -32,14 +32,17 @@ const groups = computed(() => {
 
 const rows = computed(() => {
   const w = dist.value.binWidth
-  return splitTop(dist.value.bins, 6, 0.01).top.map((b) => ({
-    key: b.bpm,
-    name: String(b.bpm),
-    sub: 'BPM',
-    share: b.share,
-    color: COLORS[b.group],
-    title: w > 1 ? `${b.bpm - w / 2}–${b.bpm + w / 2} BPM` : '',
-  }))
+  // 每個 BPM 一條，由慢到快排
+  return [...dist.value.bins]
+    .sort((a, b) => a.bpm - b.bpm)
+    .map((b) => ({
+      key: b.bpm,
+      name: String(b.bpm),
+      sub: 'BPM',
+      share: b.share,
+      color: COLORS[b.group],
+      title: w > 1 ? `${b.bpm - w / 2}–${b.bpm + w / 2} BPM` : '',
+    }))
 })
 
 // 偏慢＋偏快的時間比例

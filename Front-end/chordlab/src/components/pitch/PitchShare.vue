@@ -2,12 +2,12 @@
 /**
  * 音高占比（依主旋律出現的時間計算），跟和弦占比同一種圖
  * - 上方：各音區（八度）的頻率範圍（Hz）占多少，低音區在左；每個音區一個顏色，相鄰音區顏色差很多
- * - 下方：最常出現的 10 個音（含八度與 Hz），顏色跟所屬音區一致
+ * - 下方：出現過的每個音（含八度與 Hz），依 Hz 由低到高排，顏色跟所屬音區一致
  */
 import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
 import { fmtHz } from '@/utils/theory.js'
-import { splitTop, fmtPct } from '@/utils/stats.js'
+import { fmtPct } from '@/utils/stats.js'
 
 const props = defineProps({
   // utils/pitch.js analyzePitch() 的結果
@@ -27,18 +27,18 @@ const groups = computed(() =>
   })),
 )
 
-const rows = computed(() => {
-  const { top, rest } = splitTop(props.stats.notes, 10)
-  const out = top.map((n) => ({
-    key: n.midi,
-    name: n.name,
-    sub: fmtHz(n.hz) + (n.inKey ? '' : '・調外'),
-    share: n.share,
-    color: regColor(n.octave),
-  }))
-  if (rest.length) out.push({ key: 'other', name: `其他 ${rest.length} 個音`, share: rest.reduce((s, n) => s + n.share, 0), other: true })
-  return out
-})
+// 每個音一條，依 Hz 由低到高排
+const rows = computed(() =>
+  [...props.stats.notes]
+    .sort((a, b) => a.hz - b.hz)
+    .map((n) => ({
+      key: n.midi,
+      name: n.name,
+      sub: fmtHz(n.hz) + (n.inKey ? '' : '・調外'),
+      share: n.share,
+      color: regColor(n.octave),
+    })),
+)
 </script>
 
 <template>
