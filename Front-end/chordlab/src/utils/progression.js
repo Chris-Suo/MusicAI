@@ -115,21 +115,65 @@ function tokenMatches(token, deg) {
 const occurrence = (runs, from, to) => ({ startBar: runs[from].startBar, endBar: runs[to].endBar })
 
 /**
- * 在和弦變換序列（runs）上比對字典
- * 每個級數都要完全對上才算（不接受代理和弦，例如 1-3-4-5 不算 50 年代進行 1-6-4-5）
+ * 這一段（run）有沒有落在樂句開頭：從所在段落（section）的開頭算起，涵蓋的小節裡有 phrase 的倍數
+ * （段落的第 1、5、9… 小節）。段落以無和弦（N）分開，所以間奏、停頓之後會重新起算。
+ * 同一個循環的不同起點（6-4-5-1 / 1-6-4-5）在連續重複時都比對得到，用這個判斷哪個起點才是樂句的開頭
+ * phrase 為 null（沒有拍點、無法切小節）時一律不算
  */
-function findKnown(runs) {
-  const candidates = []
-  for (const p of KNOWN_PROGRESSIONS) {
-    const n = p.degrees.length
-    for (let i = 0; i + n <= runs.length; i++) {
-      if (p.degrees.every((token, k) => tokenMatches(token, runs[i + k].degree))) {
-        candidates.push({ pattern: p, from: i, to: i + n - 1 })
-      }
+function onPhraseStart(run, phrase) {
+  if (!phrase) return false
+  const from = run.startBar - run.sectionStart
+  const to = run.endBar - run.sectionStart
+  return Math.floor(to / phrase) * phrase >= from
+}
+
+/** runs[i]～runs[i+n-1] 都在同一個段落（中間沒有無和弦） */
+const sameSection = (runs, i, n) => runs[i].section === runs[i + n - 1].section
+
+/** 依序挑不重疊的位置（每個位置涵蓋 n 段） */
+function nonOverlapping(starts, n) {
+  const out = []
+  let lastEnd = -1
+  for (const s of starts) {
+    if (s > lastEnd) {
+      out.push(s)
+      lastEnd = s + n - 1
     }
   }
-  // 長的優先、位置先的優先；挑不重疊的
-  candidates.sort((a, b) => b.to - b.from - (a.to - a.from) || a.from - b.from)
+  return out
+}
+
+/**
+ * 在和弦變換序列（runs）上比對字典
+ * 每個級數都要完全對上才算（不接受代理和弦，例如 1-3-4-5 不算 50 年代進行 1-6-4-5）
+ *
+ * 重疊時的取捨：同一個循環的不同起點（小室進行 6-4-5-1、50 年代進行 1-6-4-5）在連續重複時
+ * 兩個都比對得到，不能只看誰的位置先，否則前奏多一個和弦就會整首都判成另一個。
+ * 依序比：長的優先 → 這首歌裡「從樂句開頭開始」次數多的優先 → 總次數多的優先 → 位置先的優先
+ */
+function findKnown(runs, phrase) {
+  const candidates = []
+  const stats = new Map() // pattern id → { aligned, total }
+  for (const p of KNOWN_PROGRESSIONS) {
+    const n = p.degrees.length
+    const st = { aligned: 0, total: 0 }
+    for (let i = 0; i + n <= runs.length; i++) {
+      if (sameSection(runs, i, n) && p.degrees.every((token, k) => tokenMatches(token, runs[i + k].degree))) {
+        candidates.push({ pattern: p, from: i, to: i + n - 1 })
+        st.total++
+        if (onPhraseStart(runs[i], phrase)) st.aligned++
+      }
+    }
+    stats.set(p.id, st)
+  }
+  const st = (c) => stats.get(c.pattern.id)
+  candidates.sort(
+    (a, b) =>
+      b.to - b.from - (a.to - a.from) ||
+      st(b).aligned - st(a).aligned ||
+      st(b).total - st(a).total ||
+      a.from - b.from,
+  )
   const used = new Array(runs.length).fill(false)
   const picked = []
   for (const c of candidates) {
@@ -179,42 +223,44 @@ function containsCyclic(big, small) {
 
 /**
  * 從資料本身找反覆出現的循環（不需要字典）
- * 同一個循環的不同起點視為同一組
+ * 同一個循環的不同起點（6-4-5-1 / 4-5-1-6 / 5-1-6-4 / 1-6-4-5）視為同一組，但只挑一個起點當代表，
+ * 次數與標出的位置都只算「完全照這個起點」的出現，不會把其他起點也圈進來。
+ * 代表的起點：從樂句開頭開始的次數多的優先 → 次數多的優先 → 第一次出現早的優先
  */
-function findLoops(runs) {
+function findLoops(runs, phrase) {
   const loops = []
   for (const n of LOOP_LENGTHS) {
     const groups = new Map()
     for (let i = 0; i + n <= runs.length; i++) {
+      if (!sameSection(runs, i, n)) continue
       const seq = runs.slice(i, i + n).map((r) => r.degree?.number)
       if (seq.some((d) => !d)) continue
       if (n > 1 && seq.every((d) => d === seq[0])) continue
       if (n >= 6 && isRepetition(seq)) continue
       const key = canonicalRotation(seq)
-      if (!groups.has(key)) groups.set(key, { variants: new Map(), starts: [] })
-      const g = groups.get(key)
+      if (!groups.has(key)) groups.set(key, new Map())
+      const variants = groups.get(key) // 起點寫法 → 出現的位置
       const v = seq.join('-')
-      g.variants.set(v, (g.variants.get(v) ?? 0) + 1)
-      g.starts.push(i)
+      if (!variants.has(v)) variants.set(v, [])
+      variants.get(v).push(i)
     }
-    for (const [key, g] of groups) {
-      // 不重疊計數
-      const occ = []
-      let lastEnd = -1
-      for (const s of g.starts) {
-        if (s > lastEnd) {
-          occ.push(occurrence(runs, s, s + n - 1))
-          lastEnd = s + n - 1
-        }
-      }
-      if (occ.length < 2) continue
-      const degrees = [...g.variants.entries()].sort((a, b) => b[1] - a[1])[0][0].split('-')
+    for (const [key, variants] of groups) {
+      // 每種起點各自算不重疊的次數，挑一個當代表
+      const best = [...variants.entries()]
+        .map(([v, starts]) => {
+          const picked = nonOverlapping(starts, n)
+          return { v, picked, aligned: picked.filter((s) => onPhraseStart(runs[s], phrase)).length }
+        })
+        .sort((a, b) => b.aligned - a.aligned || b.picked.length - a.picked.length || a.picked[0] - b.picked[0])[0]
+      if (best.picked.length < 2) continue
+      const occ = best.picked.map((s) => occurrence(runs, s, s + n - 1))
+      const degrees = best.v.split('-')
       // 先找起點寫法完全相同的（6-4-5-1 → 小室進行），找不到再找同一個循環的（→ 50 年代進行）
       const named =
         KNOWN_PROGRESSIONS.find((p) => plainDegrees(p).join('-') === degrees.join('-')) ??
         KNOWN_PROGRESSIONS.find((p) => p.degrees.length === n && canonicalRotation(plainDegrees(p)) === key)
       loops.push({
-        degrees, // 最常出現的起點寫法，例如 ['6','4','1','5']
+        degrees, // 代表的起點寫法，例如 ['6','4','5','1']
         length: n,
         count: occ.length,
         occurrences: occ,
@@ -268,12 +314,28 @@ export function analyzeProgression({ timeline = [], key = null, beats = [], beat
     if (last && last.chord === b.chord) last.endBar = b.index
     else runs.push({ chord: b.chord, degree: b.degree, startBar: b.index, endBar: b.index })
   }
+  // 無和弦（N）把歌切成好幾個段落：進行不跨段比對，樂句開頭也從每段的開頭重新算
+  let section = 0
+  let sectionStart = 0
+  let prevVoiced = false
+  for (const r of runs) {
+    if (r.degree && !prevVoiced) {
+      section++
+      sectionStart = r.startBar
+    }
+    r.section = section
+    r.sectionStart = sectionStart
+    prevVoiced = !!r.degree
+  }
   const voicedRuns = runs.filter((r) => r.degree)
+
+  // 樂句長度（幾格）：4 小節一句；半小節模式是 8 格；沒有拍點時無法判斷
+  const phrase = grid ? (unit === 'half' ? 8 : 4) : null
 
   return {
     unit: grid ? (unit === 'half' ? 'half-bar' : 'bar') : 'chord',
     bars,
-    known: findKnown(voicedRuns),
-    loops: findLoops(voicedRuns),
+    known: findKnown(voicedRuns, phrase),
+    loops: findLoops(voicedRuns, phrase),
   }
 }
