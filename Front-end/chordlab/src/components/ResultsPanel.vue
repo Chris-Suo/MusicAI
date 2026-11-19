@@ -18,6 +18,7 @@ import ChordEmotionMap from '@/components/harmony/ChordEmotionMap.vue'
 import TuningCard from '@/components/pitch/TuningCard.vue'
 import PitchRange from '@/components/pitch/PitchRange.vue'
 import PitchShare from '@/components/pitch/PitchShare.vue'
+import PitchHzShare from '@/components/pitch/PitchHzShare.vue'
 import PitchContour from '@/components/pitch/PitchContour.vue'
 import TempoCard from '@/components/rhythm/TempoCard.vue'
 import TempoShare from '@/components/rhythm/TempoShare.vue'
@@ -98,6 +99,7 @@ const tabs = computed(() => {
         </div>
         <PitchShare v-if="analysis.pitchStats?.voicedRatio" :stats="analysis.pitchStats" />
       </div>
+      <PitchHzShare v-if="analysis.pitchStats?.voicedRatio" :contour="analysis.contour" :stats="analysis.pitchStats" />
       <PitchContour :contour="analysis.contour" :image-src="analysis.pitchImage" :key-info="analysis.key" :total="total" />
     </section>
 

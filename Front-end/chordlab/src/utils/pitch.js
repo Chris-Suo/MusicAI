@@ -78,3 +78,24 @@ export function analyzePitch(contour, key) {
     octaves,
   }
 }
+
+/** 「音高占比(Hz)」每個頻率區間的寬度（Hz） */
+export const HZ_BIN = 20
+
+/**
+ * 依赫茲數算占比（不轉成音名）：每個時間點的音高換成 Hz，每 binHz 一個區間（例如 220–230 Hz）
+ * @param {{ hop: number, midi: (number|null)[] }} contour
+ * @returns {{ from: number, to: number, octave: number, share: number }[]}  依赫茲數由高到低；octave 用來配音區顏色
+ */
+export function hzShares(contour, binHz = HZ_BIN) {
+  const hz = contour.midi.filter((v) => v !== null).map(midiToHz)
+  if (!hz.length) return []
+  return [...countBy(hz, (h) => Math.floor(h / binHz))]
+    .map(([bin, c]) => {
+      const from = bin * binHz
+      // 區間中央的頻率在哪個八度（MIDI 60 = C4）
+      const mid = from + binHz / 2
+      return { from, to: from + binHz, octave: octaveOf(69 + 12 * Math.log2(mid / 440)), share: c / hz.length }
+    })
+    .sort((a, b) => b.from - a.from)
+}

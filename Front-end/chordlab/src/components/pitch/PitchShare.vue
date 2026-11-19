@@ -2,7 +2,7 @@
 /**
  * 音高占比（依主旋律出現的時間計算），跟和弦占比同一種圖
  * - 上方：各音區（八度）的頻率範圍（Hz）占多少，低音區在左；每個音區一個顏色，相鄰音區顏色差很多
- * - 下方：出現過的每個音（含八度與 Hz），依 Hz 由低到高排，顏色跟所屬音區一致
+ * - 下方：出現過的每個音（含八度與 Hz），依 Hz 由低到高排，調外音放在最後（也是依 Hz 由低到高），顏色跟所屬音區一致
  */
 import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
@@ -27,10 +27,10 @@ const groups = computed(() =>
   })),
 )
 
-// 每個音一條，依 Hz 由低到高排
+// 每個音一條：調內音在前、調外音在後，各自依 Hz 由低到高排
 const rows = computed(() =>
   [...props.stats.notes]
-    .sort((a, b) => a.hz - b.hz)
+    .sort((a, b) => Number(b.inKey) - Number(a.inKey) || a.hz - b.hz)
     .map((n) => ({
       key: n.midi,
       name: n.name,
