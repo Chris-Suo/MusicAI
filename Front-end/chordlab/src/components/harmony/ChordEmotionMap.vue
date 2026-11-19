@@ -17,7 +17,7 @@
  * 每種性質的文字說明只在右邊清單出現一次，不在逐段明細重印。
  */
 import { ref, computed } from 'vue'
-import wheelUrl from '@/assets/emotion-wheel.webp'
+import wheelUrl from '@/assets/emotion-space.webp'
 import { CHORD_EMOTIONS, buildEmotionPath, buildWindowPath, convexHull } from '@/utils/chordEmotion.js'
 import { prettyChord } from '@/utils/chords.js'
 import { indexAt } from '@/utils/time.js'
@@ -31,9 +31,10 @@ const props = defineProps({
 
 const pb = usePlayback()
 
-// 座標 → SVG：背景圖是 960×960，中心是原點，每 1 單位 40px（±10 剛好在外圈上，整張圖是 ±12）
+// 座標 → SVG：背景圖是 960×960，以光環圓心為中心裁切，±10 剛好在最外圈上；
+// 原圖光環外只剩一點邊，所以整張圖只涵蓋約 ±10.6（換背景圖時要依新圖的外圈位置重算）
 const SIZE = 960
-const RANGE = 12
+const RANGE = 10.6
 const UNIT = SIZE / 2 / RANGE
 const px = (x) => SIZE / 2 + x * UNIT
 const py = (y) => SIZE / 2 - y * UNIT
@@ -393,10 +394,10 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
   align-items: start;
 }
 
-/* 背景圖是白底，兩種主題都放在淺色底板上，圖上的線與字用固定的深色 */
+/* 背景圖是深色星空，兩種主題都放在深色底板上，圖上的點、線、字用固定的淺色＋深色外框 */
 .map-wrap {
   position: relative;
-  background: #ffffff;
+  background: #05060f;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
@@ -408,45 +409,46 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 }
 
 .wheel {
-  opacity: 0.5;
+  opacity: 0.85;
 }
 
 .axes line {
-  stroke: #4a4f63;
+  stroke: #ffffff;
   stroke-width: 2;
-  opacity: 0.45;
+  opacity: 0.35;
 }
 
 .pt-unused {
-  fill: #1b1d29;
-  opacity: 0.22;
+  fill: #ffffff;
+  opacity: 0.35;
   cursor: help;
 }
 
 .pt-unused.hover {
-  opacity: 0.6;
+  opacity: 0.85;
 }
 
 .edge {
   fill: none;
-  stroke: #2b2f45;
-  stroke-opacity: 0.45;
+  stroke: #ffffff;
+  stroke-opacity: 0.6;
   stroke-linecap: round;
   transition: stroke-opacity 0.2s;
 }
 
 .edge.faded {
-  stroke-opacity: 0.18;
+  stroke-opacity: 0.25;
 }
 
 .arrow-base {
-  fill: #2b2f45;
-  fill-opacity: 0.55;
+  fill: #ffffff;
+  fill-opacity: 0.7;
 }
 
 .trail {
   fill: none;
   stroke: var(--playhead);
+  filter: drop-shadow(0 0 3px #000000);
   stroke-width: 7;
   stroke-linecap: round;
 }
@@ -475,46 +477,46 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 }
 
 .pt-step-dot {
-  fill: #ffffff;
-  stroke: #2b2f45;
+  fill: #11131c;
+  stroke: #ffffff;
   stroke-width: 3;
 }
 
 .pt-step.hover .pt-step-dot,
 .pt-step.now .pt-step-dot {
-  fill: #4b36d6;
+  fill: #9d8cff;
   stroke: #ffffff;
 }
 
 .pt-step-label {
-  fill: #2b2f45;
+  fill: #ffffff;
   font-size: 20px;
   font-weight: 700;
   font-family: var(--font-sans);
   paint-order: stroke;
-  stroke: #ffffff;
+  stroke: #0b0d16;
   stroke-width: 6px;
   stroke-linejoin: round;
 }
 
 .pt-dot {
-  fill: #1b1d29;
-  stroke: #ffffff;
+  fill: #ffffff;
+  stroke: #11131c;
   stroke-width: 4;
   transition: fill 0.15s;
 }
 
 .pt.hover .pt-dot {
-  fill: #4b36d6;
+  fill: #9d8cff;
 }
 
 .pt-label {
-  fill: #1b1d29;
+  fill: #ffffff;
   font-size: 28px;
   font-weight: 700;
   font-family: var(--font-sans);
   paint-order: stroke;
-  stroke: #ffffff;
+  stroke: #0b0d16;
   stroke-width: 7px;
   stroke-linejoin: round;
 }
