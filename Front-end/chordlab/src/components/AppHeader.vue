@@ -4,7 +4,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 
 <template>
   <header class="header">
-    <div class="logo">Musictomic <span>Lab</span></div>
+    <div class="logo">Musitonic <span>Lab</span></div>
     <ThemeToggle />
   </header>
 </template>
