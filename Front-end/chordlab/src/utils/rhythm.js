@@ -83,6 +83,17 @@ const TEMPO_TERMS = [
   [Infinity, 'Prestissimo', '最急板'],
 ]
 
+/**
+ * 速度術語對照表（速度卡下方的說明用），跟 tempoTerm() 用同一份資料
+ * @returns {{ range: string, it: string, zh: string, from: number, to: number }[]}
+ *   range 例如 '< 40'、'40–60'、'≥ 200'；from ≤ BPM < to
+ */
+export const TEMPO_TABLE = TEMPO_TERMS.map(([to, it, zh], i) => {
+  const from = i ? TEMPO_TERMS[i - 1][0] : 0
+  const range = i === 0 ? `< ${to}` : to === Infinity ? `≥ ${from}` : `${from}–${to}`
+  return { range, it, zh, from, to }
+})
+
 /** 90 BPM → { it: 'Andante', zh: '行板' } */
 export function tempoTerm(bpm) {
   if (!bpm) return null

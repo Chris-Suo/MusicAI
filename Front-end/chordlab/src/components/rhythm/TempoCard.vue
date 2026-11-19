@@ -1,9 +1,9 @@
 <script setup>
 /**
- * 速度：BPM、速度術語、在速度尺上的位置、拍數與小節數
+ * 速度：BPM、速度術語、在速度尺上的位置、拍數與小節數，下方是速度術語對照表（目前的速度那列標亮）
  */
 import { computed } from 'vue'
-import { tempoTerm } from '@/utils/rhythm.js'
+import { tempoTerm, TEMPO_TABLE } from '@/utils/rhythm.js'
 
 const props = defineProps({
   // Essentia RhythmExtractor 的整體 BPM（沒有時用拍距中位數）
@@ -70,6 +70,24 @@ const term = computed(() => tempoTerm(props.bpm))
 
       <p v-if="rhythm.count" class="count">共 {{ rhythm.count }} 拍・約 {{ rhythm.barCount }} 小節</p>
     </template>
+
+    <div class="sub-title">速度術語對照</div>
+    <table class="terms">
+      <thead>
+        <tr>
+          <th scope="col">BPM</th>
+          <th scope="col">術語</th>
+          <th scope="col">中文</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="t in TEMPO_TABLE" :key="t.it" :class="{ on: bpm && bpm >= t.from && bpm < t.to }" :aria-current="bpm && bpm >= t.from && bpm < t.to ? 'true' : null">
+          <td class="t-range">{{ t.range }}</td>
+          <td class="t-it">{{ t.it }}</td>
+          <td>{{ t.zh }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -126,5 +144,47 @@ const term = computed(() => tempoTerm(props.bpm))
 .count {
   font-size: 0.95rem;
   color: var(--text2);
+}
+
+/* 速度術語對照表 */
+.terms {
+  width: 100%;
+  max-width: 420px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.terms th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.terms td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+}
+
+.t-range {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.t-it {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.terms tr.on td {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.terms tr.on td:first-child {
+  box-shadow: inset 4px 0 0 var(--accent);
 }
 </style>
