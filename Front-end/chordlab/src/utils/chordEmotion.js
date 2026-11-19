@@ -251,3 +251,29 @@ export function buildWindowPath(timeline, windowSec = WINDOW_SEC) {
 
   return { ...base, steps, edges, mode: 'window', windowSec }
 }
+
+// ---------------------------------------------------------------------------
+// 目前使用的軌跡版本（和弦分頁的情緒軌跡、總樂性元分頁都用這裡，切換一次兩邊一起換）
+// ---------------------------------------------------------------------------
+
+/**
+ * 軌跡版本：兩行保留一行，另一行註解掉
+ * @param {{ chord: string, start: number, dur: number }[]} timeline
+ */
+export function buildTrajectory(timeline) {
+  // A. 和弦順序（原本的版本）
+  // return buildEmotionPath(timeline)
+  // B. 每 15 秒一個區間，取區間內和弦座標的平均座標：x、y 各自平均（區間長度改上面的 WINDOW_SEC）
+  return buildWindowPath(timeline)
+}
+
+/**
+ * 軌跡上所有點的平均位置（每個點同樣份量，x、y 各自平均）
+ * @param {ReturnType<typeof buildTrajectory>} path
+ * @returns {{ x: number, y: number, count: number } | null}  沒有軌跡點時回傳 null
+ */
+export function trajectoryMean(path) {
+  const pts = path.steps.map((s) => s.emo)
+  if (!pts.length) return null
+  return { ...centroid(pts), count: pts.length }
+}

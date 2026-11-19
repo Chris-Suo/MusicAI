@@ -2,7 +2,7 @@
 /**
  * 和弦情緒軌跡
  * 使用 utils/chordEmotion.js：依和弦性質把每個和弦放到情緒輪座標上，再連成軌跡。
- * 軌跡有兩個版本，在下面「軌跡版本」那裡切換（註解掉一行、打開另一行）：
+ * 軌跡有兩個版本，在 utils/chordEmotion.js 的 buildTrajectory() 切換（註解掉一行、打開另一行）：
  *   A. 和弦順序：每換一種和弦性質就是一步
  *   B. 區間平均座標（目前使用）：每 15 秒一個區間，區間內和弦座標的 x、y 各自平均，得到平均座標，一個區間一步；
  *      播放時會用淡紅色畫出目前區間的圖形，數字點是各區間的平均座標
@@ -18,7 +18,7 @@
  */
 import { ref, computed } from 'vue'
 import wheelUrl from '@/assets/emotion-space.webp'
-import { CHORD_EMOTIONS, buildEmotionPath, buildWindowPath, convexHull } from '@/utils/chordEmotion.js'
+import { CHORD_EMOTIONS, buildTrajectory, convexHull } from '@/utils/chordEmotion.js'
 import { prettyChord } from '@/utils/chords.js'
 import { indexAt } from '@/utils/time.js'
 import { usePlayback } from '@/composables/usePlayback.js'
@@ -44,13 +44,9 @@ const TRAIL = 4
 const MOVE_SHARE = 0.75
 const MOVE_MAX = 2.5
 
-// ---------------------------------------------------------------------------
-// 軌跡版本：兩行保留一行，另一行註解掉
-// ---------------------------------------------------------------------------
-// A. 和弦順序（原本的版本）
-// const path = computed(() => buildEmotionPath(props.timeline))
-// B. 每 15 秒一個區間，取區間內和弦座標的平均座標：x、y 各自平均（區間長度改 utils/chordEmotion.js 的 WINDOW_SEC）
-const path = computed(() => buildWindowPath(props.timeline))
+// 軌跡版本（A. 和弦順序／B. 每 15 秒區間平均）的切換在 utils/chordEmotion.js 的 buildTrajectory()，
+// 總樂性元分頁也用同一個，切換一次兩邊一起換
+const path = computed(() => buildTrajectory(props.timeline))
 
 const isWindowMode = computed(() => path.value.mode === 'window')
 const usageByKey = computed(() => new Map(path.value.usage.map((u) => [u.emo.key, u])))

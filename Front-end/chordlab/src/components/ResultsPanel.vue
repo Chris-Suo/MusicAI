@@ -2,7 +2,7 @@
 /**
  * 分析結果的版面
  * - 上方：共用播放器（固定在畫面上方，含換檔案）
- * - 下方三個分頁：和弦調性／音高頻率／速度節拍，分頁上顯示各自的重點數字
+ * - 下方四個分頁：和弦調性／音高頻率／速度節拍／總樂性元，分頁上顯示各自的重點數字
  *   調音基準放在「音高頻率」（它是頻率的基準），調性情緒與情境放在「和弦調性」，
  *   音量（響度）放在「速度節拍」（速度和力度都是樂曲的表情要素）
  * 資料整理在 utils/analysis.js，這裡只負責排版與播放器
@@ -24,8 +24,11 @@ import TempoCard from '@/components/rhythm/TempoCard.vue'
 import TempoShare from '@/components/rhythm/TempoShare.vue'
 import BeatTimeline from '@/components/rhythm/BeatTimeline.vue'
 import LoudnessCard from '@/components/rhythm/LoudnessCard.vue'
+import MusicSpace3D from '@/components/overall/MusicSpace3D.vue'
+import OverallScore from '@/components/overall/OverallScore.vue'
 import { createPlayback, PLAYBACK_KEY } from '@/composables/usePlayback.js'
 import { buildAnalysis } from '@/utils/analysis.js'
+import { overallScore } from '@/utils/overall.js'
 import { loadSetting, saveSetting } from '@/utils/storage.js'
 
 const props = defineProps({
@@ -54,17 +57,26 @@ const total = computed(() => Math.max(playback.duration.value, analysis.value.le
 // 分頁（記住上次看的分頁）
 // ---------------------------------------------------------------------------
 const TAB_KEY = 'chordlab.tab'
-const TAB_IDS = ['harmony', 'pitch', 'rhythm']
+const TAB_IDS = ['harmony', 'pitch', 'rhythm', 'overall']
 
 const tab = ref(loadSetting(TAB_KEY, TAB_IDS) ?? 'harmony')
 watch(tab, (t) => saveSetting(TAB_KEY, t))
 
+// 總樂性元的最終值（分頁上顯示；卡片裡的細節由 OverallScore 自己算）
+const overallFinal = computed(() => {
+  const { timeline, contour, beats } = analysis.value
+  return overallScore({ timeline, contour, beats, length: total.value }).final
+})
+const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1)
+
 const tabs = computed(() => {
   const { key, tuning, bpm } = analysis.value
+  const fin = overallFinal.value
   return [
     { id: 'harmony', icon: 'harmony', title: '和弦調性', sub: key?.name ?? '' },
     { id: 'pitch', icon: 'pitch', title: '音高頻率', sub: tuning.a4 ? `A4 ${tuning.a4.toFixed(1)} Hz` : '' },
     { id: 'rhythm', icon: 'rhythm', title: '速度節拍', sub: bpm ? `${Math.round(bpm)} BPM` : '' },
+    { id: 'overall', icon: 'cube', title: '總樂性元', sub: fin ? `x ${f1(fin.x)}／y ${f1(fin.y)}` : '' },
   ]
 })
 </script>
@@ -111,6 +123,12 @@ const tabs = computed(() => {
       </div>
       <BeatTimeline v-if="analysis.beats.length" :beats="analysis.beats" :rhythm="analysis.rhythm" :total="total" />
       <LoudnessCard v-if="analysis.lufs !== null" :lufs="analysis.lufs" :curve="analysis.loudnessCurve" :total="total" />
+    </section>
+
+    <!-- 總樂性元：把和弦、速度等元素合在一起看 -->
+    <section v-show="tab === 'overall'" id="panel-overall" class="panel" role="tabpanel" aria-labelledby="tab-overall">
+      <MusicSpace3D :timeline="analysis.timeline" :bpm="analysis.bpm" />
+      <OverallScore :timeline="analysis.timeline" :contour="analysis.contour" :beats="analysis.beats" :length="total" />
     </section>
   </div>
 </template>

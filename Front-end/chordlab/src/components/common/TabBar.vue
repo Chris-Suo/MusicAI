@@ -31,7 +31,7 @@ function onKey(e) {
 </script>
 
 <template>
-  <div class="tabs" role="tablist" :aria-label="label">
+  <div class="tabs" role="tablist" :aria-label="label" :style="{ '--tab-count': tabs.length }">
     <button
       v-for="t in tabs"
       :id="'tab-' + t.id"
@@ -56,7 +56,8 @@ function onKey(e) {
 <style scoped>
 .tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* 分頁幾個就分幾欄，平均分在同一行 */
+  grid-template-columns: repeat(var(--tab-count, 3), minmax(0, 1fr));
   gap: 10px;
   margin: 1.25rem 0;
 }
@@ -107,6 +108,19 @@ function onKey(e) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 四個分頁放一行時，中等寬度就把重點數字移到名稱下面，避免擠在一起 */
+@media (max-width: 900px) {
+  .tab {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tab-sub {
+    margin-left: 0;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 640px) {

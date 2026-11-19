@@ -37,6 +37,12 @@ defineProps({
       <path d="M12 16l5-9" />
       <path d="M7 16h10" />
     </template>
+    <!-- 總樂性元：立方體（三維） -->
+    <template v-else-if="name === 'cube'">
+      <path d="M12 2l9 5v10l-9 5-9-5V7l9-5z" />
+      <path d="M3 7l9 5 9-5" />
+      <path d="M12 12v10" />
+    </template>
     <template v-else-if="name === 'play'">
       <path d="M7 4.5v15l12-7.5-12-7.5z" fill="currentColor" stroke="none" />
     </template>
