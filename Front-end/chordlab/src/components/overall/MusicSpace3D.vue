@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 總樂性元・三維位置：把整首歌放進一個三維空間
- * - x、y：和弦分頁「和弦情緒軌跡」所有軌跡點的平均（x 正負情緒、y 張力），軌跡版本跟和弦分頁一致
+ * - x、y：和弦分頁「和弦情緒軌跡」所有軌跡點的平均（x 效價 Valence、y 喚醒度 Arousal），軌跡版本跟和弦分頁一致
  *   （切換在 utils/chordEmotion.js 的 buildTrajectory()）
  * - z：速度 BPM
  * 用 SVG 自己做正投影，不另外裝 3D 套件：拖曳（滑鼠或觸控）旋轉，聚焦後也可以用方向鍵，按鈕回到預設視角
@@ -100,9 +100,10 @@ const ticks = computed(() => {
 const axisTitles = computed(() => {
   void yaw.value, pitch.value
   return [
-    { key: 'x', ...project(0, -1.32, -1), text: 'x 正負情緒' },
-    { key: 'y', ...project(1.34, 0, -1), text: 'y 張力' },
-    { key: 'z', ...project(-1.1, -1.1, 1.22), text: 'z 速度 BPM' },
+    // 軸名比刻度再往外一點，避免壓到刻度數字
+    { key: 'x', ...project(0, -1.5, -1), text: 'x 效價 Valence', anchor: 'middle' },
+    { key: 'y', ...project(1.42, -0.1, -1), text: 'y 喚醒度 Arousal', anchor: 'start' },
+    { key: 'z', ...project(-1.1, -1.1, 1.22), text: 'z 速度 BPM', anchor: 'middle' },
   ]
 })
 
@@ -188,7 +189,7 @@ function resetView() {
         <path v-for="(d, i) in cubeEdges" :key="i" :d="d" class="edge" />
 
         <text v-for="t in ticks" :key="t.key" :x="t.x" :y="t.y + 4" text-anchor="middle" class="tick">{{ t.text }}</text>
-        <text v-for="t in axisTitles" :key="t.key" :x="t.x" :y="t.y + 5" text-anchor="middle" class="axis-title">{{ t.text }}</text>
+        <text v-for="t in axisTitles" :key="t.key" :x="t.x" :y="t.y + 5" :text-anchor="t.anchor" class="axis-title">{{ t.text }}</text>
 
         <template v-if="point">
           <path :d="point.toX" class="guide" />
@@ -205,11 +206,11 @@ function resetView() {
 
       <dl class="stats">
         <div>
-          <dt>x 正負情緒</dt>
+          <dt>x 效價 Valence</dt>
           <dd>{{ num(mean.x) }}</dd>
         </div>
         <div>
-          <dt>y 張力</dt>
+          <dt>y 喚醒度 Arousal</dt>
           <dd>{{ num(mean.y) }}</dd>
         </div>
         <div>

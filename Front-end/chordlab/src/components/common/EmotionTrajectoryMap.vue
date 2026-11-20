@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 情緒輪上的軌跡圖（音高情緒軌跡、速度情緒軌跡共用）：底圖＋整首歌的軌跡＋播放中的紅點與最近幾步
- * - steps：[{ emo: { key, x, y, short }, start, end }]，依時間排序；座標 ±10（x 正負情緒、y 張力）
+ * - steps：[{ emo: { key, x, y, short }, start, end }]，依時間排序；座標 ±10（x 效價 Valence、y 喚醒度 Arousal）
  * - 同一個座標的步畫成一個點，編號用「、」串起來（例如速度回到同一個區間）
  * - refPoints：淡淡的參考點（例如速度區間的位置），[{ key, x, y, label }]
  * - 滑過點時用 v-model:hover 回報點的 key（posKey），提示框的內容由使用的元件用 #tip 插槽決定

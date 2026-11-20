@@ -4,7 +4,7 @@
  * 換算公式照使用者提供的 pitch_emotion_compact.html（computeCoords）：
  *   輸入是 平均基頻 F0、頻譜質心 SC、音量（soft／loud）、基準調音（440／432）
  *   輸出是 效價 valence（-0.92～0.92，負向～正向）與 喚醒度 arousal（-0.92～0.92，放鬆～緊張）
- * 這裡把 valence、arousal 各乘 10，放到跟和弦情緒軌跡相同的 ±10 座標（x 正負情緒、y 張力）。
+ * 這裡把 valence、arousal 各乘 10，放到跟和弦情緒軌跡相同的 ±10 座標（x 效價 Valence、y 喚醒度 Arousal）。
  *
  * 目前後端只有主旋律音高，所以只有 F0 是每個區間實際算出來的；
  * SC、音量、調音先用 PITCH_EMOTION_INPUT 的固定值（附件 HTML 的預設狀態）。

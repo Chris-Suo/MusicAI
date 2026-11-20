@@ -26,11 +26,12 @@ import TempoShare from '@/components/rhythm/TempoShare.vue'
 import BeatTimeline from '@/components/rhythm/BeatTimeline.vue'
 import LoudnessCard from '@/components/rhythm/LoudnessCard.vue'
 import TempoEmotionMap from '@/components/rhythm/TempoEmotionMap.vue'
-import MusicSpace3D from '@/components/overall/MusicSpace3D.vue'
+// 三維位置先隱藏（2026-11-20），要恢復時把這行和下面 <MusicSpace3D> 的註解拿掉
+// import MusicSpace3D from '@/components/overall/MusicSpace3D.vue'
 import OverallScore from '@/components/overall/OverallScore.vue'
 import { createPlayback, PLAYBACK_KEY } from '@/composables/usePlayback.js'
 import { buildAnalysis } from '@/utils/analysis.js'
-import { overallScore } from '@/utils/overall.js'
+import { overallPoint } from '@/utils/overall.js'
 import { loadSetting, saveSetting } from '@/utils/storage.js'
 
 const props = defineProps({
@@ -64,10 +65,10 @@ const TAB_IDS = ['harmony', 'pitch', 'rhythm', 'overall']
 const tab = ref(loadSetting(TAB_KEY, TAB_IDS) ?? 'harmony')
 watch(tab, (t) => saveSetting(TAB_KEY, t))
 
-// 總樂性元的最終值（分頁上顯示；卡片裡的細節由 OverallScore 自己算）
+// 總樂性元的最終座標（分頁上顯示；卡片裡的細節由 OverallScore 自己算）
 const overallFinal = computed(() => {
-  const { timeline, contour, beats } = analysis.value
-  return overallScore({ timeline, contour, beats, length: total.value }).final
+  const { timeline, contour, beats, key } = analysis.value
+  return overallPoint({ timeline, contour, beats, length: total.value, key }).final
 })
 const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1)
 
@@ -78,7 +79,7 @@ const tabs = computed(() => {
     { id: 'harmony', icon: 'harmony', title: '和弦調性', sub: key?.name ?? '' },
     { id: 'pitch', icon: 'pitch', title: '音高頻率', sub: tuning.a4 ? `A4 ${tuning.a4.toFixed(1)} Hz` : '' },
     { id: 'rhythm', icon: 'rhythm', title: '速度節拍', sub: bpm ? `${Math.round(bpm)} BPM` : '' },
-    { id: 'overall', icon: 'cube', title: '總樂性元', sub: fin ? `x ${f1(fin.x)}／y ${f1(fin.y)}` : '' },
+    { id: 'overall', icon: 'cube', title: '總樂性元', sub: fin ? `(${f1(fin.x)}, ${f1(fin.y)})` : '' },
   ]
 })
 </script>
@@ -131,8 +132,9 @@ const tabs = computed(() => {
 
     <!-- 總樂性元：把和弦、速度等元素合在一起看 -->
     <section v-show="tab === 'overall'" id="panel-overall" class="panel" role="tabpanel" aria-labelledby="tab-overall">
-      <MusicSpace3D :timeline="analysis.timeline" :bpm="analysis.bpm" />
-      <OverallScore :timeline="analysis.timeline" :contour="analysis.contour" :beats="analysis.beats" :length="total" />
+      <!-- 三維位置先隱藏 -->
+      <!-- <MusicSpace3D :timeline="analysis.timeline" :bpm="analysis.bpm" /> -->
+      <OverallScore :timeline="analysis.timeline" :contour="analysis.contour" :beats="analysis.beats" :length="total" :key-info="analysis.key" />
     </section>
   </div>
 </template>

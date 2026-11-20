@@ -2,7 +2,7 @@
 /**
  * 音高情緒軌跡：每 15 秒一個區間，用主旋律的平均赫茲數換算成情緒輪上的座標，依序連成軌跡
  * - 換算公式在 utils/pitchEmotion.js（照使用者提供的 pitch_emotion_compact.html）
- * - 圖跟和弦情緒軌跡同一張，x＝正負情緒（效價）、y＝張力（喚醒度）；軌跡與播放紅點在 EmotionTrajectoryMap.vue
+ * - 圖跟和弦情緒軌跡同一張，x＝效價 Valence、y＝喚醒度 Arousal；軌跡與播放紅點在 EmotionTrajectoryMap.vue
  * - 播放時右邊顯示這一段的平均音高與所在象限；點右邊的清單從那一段開始播放
  */
 import { ref, computed } from 'vue'
@@ -39,7 +39,7 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
     <div class="card-head">
       <div>
         <h3 class="card-title">音高情緒軌跡</h3>
-        <p class="card-desc">每 {{ path.windowSec }} 秒一段，用主旋律的平均赫茲數換算成情緒座標（x 正負情緒、y 張力）</p>
+        <p class="card-desc">每 {{ path.windowSec }} 秒一段，用主旋律的平均赫茲數換算成情緒座標（x 效價、y 喚醒度）</p>
       </div>
     </div>
 

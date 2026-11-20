@@ -56,7 +56,7 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
     <div class="card-head">
       <div>
         <h3 class="card-title">速度情緒軌跡</h3>
-        <p class="card-desc">每 {{ path.windowSec }} 秒一段，用平均 BPM 所在的速度區間定位（x 正負情緒、y 張力）</p>
+        <p class="card-desc">每 {{ path.windowSec }} 秒一段，用平均 BPM 所在的速度區間定位（x 效價、y 喚醒度）</p>
       </div>
       <span class="mode-tag" :class="mode">依調性：{{ modeText }}</span>
     </div>

@@ -1,6 +1,6 @@
 /**
  * 情緒輪座標圖的共用部分：和弦情緒軌跡（harmony/ChordEmotionMap.vue）與音高情緒軌跡（pitch/PitchEmotionMap.vue）
- * - 座標換算（x 正負情緒、y 張力，範圍約 ±10）→ SVG 座標
+ * - 座標換算（x 效價 Valence、y 喚醒度 Arousal，範圍約 ±10）→ SVG 座標
  * - 圓外的情緒詞、軸標示、象限文字的位置
  * - 軌跡曲線的幾何計算
  * 底圖與標示的畫法在 components/common/EmotionWheelBackdrop.vue
@@ -63,10 +63,17 @@ export const ringLabels = RING_WORDS.map((g) => {
 
 // 圓內：座標軸兩端的方向、四個象限、刻度
 export const AXIS_LABELS = [
-  { key: 'neg', x: -9.6, y: 0.55, anchor: 'start', text: '← 負向 Negative' },
-  { key: 'pos', x: 9.6, y: 0.55, anchor: 'end', text: '正向 Positive →' },
-  { key: 'tense', x: 0.35, y: 9.2, anchor: 'start', text: '↑ 緊張 Tense' },
-  { key: 'relax', x: 0.35, y: -9.6, anchor: 'start', text: '↓ 放鬆 Relaxed' },
+  // X 軸（效價 Valence）：負向情緒 至 正向情緒；軸名放在右端上方
+  { key: 'neg', x: -9.6, y: 0.55, anchor: 'start', text: '← 負向情緒' },
+  { key: 'pos', x: 9.6, y: 0.55, anchor: 'end', text: '正向情緒 →' },
+  { key: 'x-name', x: 9.6, y: 1.35, anchor: 'end', text: 'X 軸：效價 Valence', sub: true },
+  // Y 軸（喚醒度 Arousal）：低生理喚醒 Low Arousal / Relax 至 高生理喚醒 High Arousal / Tense
+  // 英文放第二行（字太長放一行會壓到圓外的情緒詞）；軸名放在上端左邊
+  { key: 'high', x: 0.35, y: 9.2, anchor: 'start', text: '↑ 高生理喚醒' },
+  { key: 'high-en', x: 0.35, y: 8.5, anchor: 'start', text: 'High Arousal / Tense', sub: true },
+  { key: 'low', x: 0.35, y: -9.0, anchor: 'start', text: '↓ 低生理喚醒' },
+  { key: 'low-en', x: 0.35, y: -9.65, anchor: 'start', text: 'Low Arousal / Relax', sub: true },
+  { key: 'y-name', x: -0.35, y: 9.2, anchor: 'end', text: 'Y 軸：喚醒度 Arousal', sub: true },
 ]
 export const QUADRANTS = [
   { key: 'nh', x: -4.6, y: 7.6, text: '負向・高張力' },

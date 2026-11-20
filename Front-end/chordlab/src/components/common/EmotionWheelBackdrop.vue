@@ -49,7 +49,7 @@ defineProps({
       </template>
       <!-- 四個象限、軸的兩端 -->
       <text v-for="q in QUADRANTS" :key="q.key" :x="px(q.x)" :y="py(q.y)" text-anchor="middle" class="quad-text">{{ q.text }}</text>
-      <text v-for="a in AXIS_LABELS" :key="a.key" :x="px(a.x)" :y="py(a.y)" :text-anchor="a.anchor" class="axis-text">{{ a.text }}</text>
+      <text v-for="a in AXIS_LABELS" :key="a.key" :x="px(a.x)" :y="py(a.y)" :text-anchor="a.anchor" :class="a.sub ? 'axis-sub' : 'axis-text'">{{ a.text }}</text>
     </g>
 
     <!-- 圓周外的情緒詞 -->
@@ -91,7 +91,8 @@ defineProps({
 /* 圓內的字：白字＋深色外框，在色輪上也看得清楚 */
 .tick-text,
 .quad-text,
-.axis-text {
+.axis-text,
+.axis-sub {
   font-family: var(--font-sans);
   paint-order: stroke;
   stroke: #0b0d16;
@@ -116,6 +117,14 @@ defineProps({
   font-size: 22px;
   font-weight: 700;
   stroke-width: 6px;
+}
+
+/* 軸名、英文：比軸兩端的字小一號 */
+.axis-sub {
+  fill: #e6e8ef;
+  font-size: 17px;
+  font-weight: 600;
+  stroke-width: 5px;
 }
 
 /* 圓周外的情緒詞 */
