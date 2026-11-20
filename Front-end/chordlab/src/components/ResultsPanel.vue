@@ -19,11 +19,13 @@ import TuningCard from '@/components/pitch/TuningCard.vue'
 import PitchRange from '@/components/pitch/PitchRange.vue'
 import PitchShare from '@/components/pitch/PitchShare.vue'
 import PitchHzShare from '@/components/pitch/PitchHzShare.vue'
+import PitchEmotionMap from '@/components/pitch/PitchEmotionMap.vue'
 import PitchContour from '@/components/pitch/PitchContour.vue'
 import TempoCard from '@/components/rhythm/TempoCard.vue'
 import TempoShare from '@/components/rhythm/TempoShare.vue'
 import BeatTimeline from '@/components/rhythm/BeatTimeline.vue'
 import LoudnessCard from '@/components/rhythm/LoudnessCard.vue'
+import TempoEmotionMap from '@/components/rhythm/TempoEmotionMap.vue'
 import MusicSpace3D from '@/components/overall/MusicSpace3D.vue'
 import OverallScore from '@/components/overall/OverallScore.vue'
 import { createPlayback, PLAYBACK_KEY } from '@/composables/usePlayback.js'
@@ -113,6 +115,7 @@ const tabs = computed(() => {
       </div>
       <PitchHzShare v-if="analysis.pitchStats?.voicedRatio" :contour="analysis.contour" :stats="analysis.pitchStats" />
       <PitchContour :contour="analysis.contour" :image-src="analysis.pitchImage" :key-info="analysis.key" :total="total" />
+      <PitchEmotionMap :contour="analysis.contour" :length="total" :key-info="analysis.key" />
     </section>
 
     <section v-show="tab === 'rhythm'" id="panel-rhythm" class="panel" role="tabpanel" aria-labelledby="tab-rhythm">
@@ -123,6 +126,7 @@ const tabs = computed(() => {
       </div>
       <BeatTimeline v-if="analysis.beats.length" :beats="analysis.beats" :rhythm="analysis.rhythm" :total="total" />
       <LoudnessCard v-if="analysis.lufs !== null" :lufs="analysis.lufs" :curve="analysis.loudnessCurve" :total="total" />
+      <TempoEmotionMap v-if="analysis.beats.length" :beats="analysis.beats" :length="total" :key-info="analysis.key" />
     </section>
 
     <!-- 總樂性元：把和弦、速度等元素合在一起看 -->

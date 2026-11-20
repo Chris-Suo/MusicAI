@@ -11,6 +11,7 @@
  */
 import { buildTrajectory, trajectoryMean, WINDOW_SEC } from '@/utils/chordEmotion.js'
 import { midiToHz } from '@/utils/theory.js'
+import { windowTempos } from '@/utils/rhythm.js'
 
 export const WEIGHTS = { emotion: 0.6, pitch: 0.2, tempo: 0.2 }
 
@@ -35,8 +36,9 @@ const mean = (arr) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length 
 export function overallScore({ timeline, contour, beats = [], length, windowSec = WINDOW_SEC }) {
   const emotion = trajectoryMean(buildTrajectory(timeline))
 
+  const tempos = windowTempos(beats, length, windowSec)
   const windows = []
-  for (let ws = 0; ws < length; ws += windowSec) {
+  for (let ws = 0, w = 0; ws < length; ws += windowSec, w++) {
     const we = Math.min(ws + windowSec, length)
 
     // 區間內有旋律的點，換成 Hz 平均
@@ -48,9 +50,8 @@ export function overallScore({ timeline, contour, beats = [], length, windowSec 
       pitch = mean(hz)
     }
 
-    // 區間內的拍點：60 ÷ 平均拍距
-    const b = beats.filter((t) => t >= ws && t < we)
-    const tempo = b.length >= 2 ? 60 / ((b[b.length - 1] - b[0]) / (b.length - 1)) : null
+    // 區間內的拍點：60 ÷ 平均拍距（utils/rhythm.js windowTempos）
+    const tempo = tempos[w].bpm
 
     windows.push({ start: ws, end: we, pitch, tempo })
   }

@@ -100,3 +100,20 @@ export function tempoTerm(bpm) {
   const [, it, zh] = TEMPO_TERMS.find(([max]) => bpm < max)
   return { it, zh }
 }
+
+/**
+ * 每 windowSec 秒一個區間的平均速度：區間內的拍點算 60 ÷ 平均拍距（少於 2 拍的區間是 null）
+ * 總樂性元（utils/overall.js）與速度情緒軌跡（utils/tempoEmotion.js）共用
+ * @param {number[]} beats  拍點（秒，已排序）
+ * @param {number} length   整首歌長度（秒）
+ * @returns {{ start: number, end: number, bpm: number|null }[]}
+ */
+export function windowTempos(beats, length, windowSec) {
+  const out = []
+  for (let ws = 0; ws < length; ws += windowSec) {
+    const we = Math.min(ws + windowSec, length)
+    const b = beats.filter((t) => t >= ws && t < we)
+    out.push({ start: ws, end: we, bpm: b.length >= 2 ? 60 / ((b[b.length - 1] - b[0]) / (b.length - 1)) : null })
+  }
+  return out
+}
