@@ -17,7 +17,7 @@
  * 每種性質的文字說明只在右邊清單出現一次，不在逐段明細重印。
  */
 import { ref, computed } from 'vue'
-import wheelUrl from '@/assets/emotion-space.webp'
+import wheelUrl from '@/assets/emotion-color-wheel.webp'
 import { CHORD_EMOTIONS, buildTrajectory, convexHull } from '@/utils/chordEmotion.js'
 import { prettyChord } from '@/utils/chords.js'
 import { indexAt } from '@/utils/time.js'
@@ -31,13 +31,75 @@ const props = defineProps({
 
 const pb = usePlayback()
 
-// 座標 → SVG：背景圖是 960×960，以光環圓心為中心裁切，±10 剛好在最外圈上；
-// 原圖光環外只剩一點邊，所以整張圖只涵蓋約 ±10.6（換背景圖時要依新圖的外圈位置重算）
-const SIZE = 960
-const RANGE = 10.6
-const UNIT = SIZE / 2 / RANGE
-const px = (x) => SIZE / 2 + x * UNIT
-const py = (y) => SIZE / 2 - y * UNIT
+// 座標 → SVG：畫布 1120×960，原點在正中央，每 1 單位 32px
+// 背景色輪（以圓心裁成正方形）畫成半徑 10 的圓，±10 剛好在圓周上；圓外留白放情緒詞
+const W = 1120
+const H = 960
+const UNIT = 32
+const R = 10 // 圓周的座標半徑
+const px = (x) => W / 2 + x * UNIT
+const py = (y) => H / 2 - y * UNIT
+
+// 圓周上的情緒詞（Russell 情緒環狀模型的 28 個詞，角度參考使用者提供的示意圖）
+// deg：每個詞在圓周上的角度（0° 是右邊的正向，逆時針為正）；同一組的詞疊成一塊文字
+// anchor：文字對齊方式，沒寫時依位置自動決定
+const RING_WORDS = [
+  { deg: [99, 96.7, 93], words: [['緊張', 'tense'], ['驚慌', 'alarmed'], ['生氣', 'angry']] },
+  { deg: [73.8, 70], words: [['驚訝', 'astonished'], ['激昂', 'aroused']] },
+  { deg: [48.7], words: [['興奮', 'excited']] },
+  { deg: [24.9], words: [['欣喜', 'delighted']] },
+  { deg: [7.8], words: [['快樂', 'happy']] },
+  { deg: [-6.7, -10.6], words: [['高興', 'glad'], ['愉快', 'pleased']] },
+  {
+    deg: [-31.3, -37.2, -39.7, -41.2, -43, -43.7],
+    words: [['平靜', 'calm'], ['放鬆', 'relaxed'], ['滿意', 'satisfied'], ['自在', 'at ease'], ['知足', 'content'], ['安詳', 'serene']],
+  },
+  { deg: [-92.4, -88.1], words: [['疲倦', 'tired'], ['想睡', 'sleepy']] },
+  // 萎靡離疲倦很近，改成靠右對齊往左排，避免疊在一起
+  { deg: [-103.5], words: [['萎靡', 'droopy']], anchor: 'end' },
+  { deg: [-118.7], words: [['無聊', 'bored']] },
+  { deg: [-152.5, -150.9, -149], words: [['難過', 'sad'], ['陰鬱', 'gloomy'], ['沮喪', 'depressed']] },
+  { deg: [-171.3], words: [['悲慘', 'miserable']] },
+  { deg: [141, 137.6], words: [['苦惱', 'distressed'], ['挫折', 'frustrated']] },
+  { deg: [116.8, 122.9], words: [['害怕', 'afraid'], ['煩躁', 'annoyed']] },
+]
+const RING_LINE = 24 // 情緒詞的行高（px）
+
+const rad = (d) => (d * Math.PI) / 180
+const ringTicks = RING_WORDS.flatMap((g) =>
+  g.deg.map((d) => {
+    const c = Math.cos(rad(d))
+    const s = Math.sin(rad(d))
+    return { key: d, x1: px(R * c), y1: py(R * s), x2: px((R + 0.45) * c), y2: py((R + 0.45) * s) }
+  }),
+)
+// 每組文字放在圓外：右側靠左對齊、左側靠右對齊、上下置中；上方的往上疊、下方的往下疊、兩側垂直置中
+const ringLabels = RING_WORDS.map((g) => {
+  const d = g.deg.reduce((a, b) => a + b, 0) / g.deg.length
+  const c = Math.cos(rad(d))
+  const s = Math.sin(rad(d))
+  const x = px((R + 0.9) * c)
+  const y = py((R + 0.9) * s)
+  const n = g.words.length
+  const anchor = g.anchor ?? (c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle')
+  const top = s > 0.7 ? y - n * RING_LINE + 8 : s < -0.7 ? y + RING_LINE - 4 : y - ((n - 1) * RING_LINE) / 2 + 7
+  return { key: d, x, anchor, lines: g.words.map(([zh, en], i) => ({ zh, en, y: top + i * RING_LINE })) }
+})
+
+// 圓內：座標軸兩端的方向、四個象限、刻度
+const AXIS_LABELS = [
+  { key: 'neg', x: -9.6, y: 0.55, anchor: 'start', text: '← 負向 Negative' },
+  { key: 'pos', x: 9.6, y: 0.55, anchor: 'end', text: '正向 Positive →' },
+  { key: 'tense', x: 0.35, y: 9.2, anchor: 'start', text: '↑ 緊張 Tense' },
+  { key: 'relax', x: 0.35, y: -9.6, anchor: 'start', text: '↓ 放鬆 Relaxed' },
+]
+const QUADRANTS = [
+  { key: 'nh', x: -4.6, y: 7.6, text: '負向・高張力' },
+  { key: 'ph', x: 4.6, y: 7.6, text: '正向・高張力' },
+  { key: 'nl', x: -4.6, y: -7.9, text: '負向・低張力' },
+  { key: 'pl', x: 4.6, y: -7.9, text: '正向・低張力' },
+]
+const AXIS_TICKS = [-10, -5, 5, 10]
 // 播放時標出最近幾步
 const TRAIL = 4
 // 換和弦時移動的時間：這個和弦長度的 75%，最多 2.5 秒（和弦很短時移動得比較快）
@@ -186,8 +248,8 @@ const hoverEmo = computed(
 const tipStyle = computed(() => {
   const e = hoverEmo.value
   if (!e) return {}
-  const left = (px(e.x) / SIZE) * 100
-  const top = (py(e.y) / SIZE) * 100
+  const left = (px(e.x) / W) * 100
+  const top = (py(e.y) / H) * 100
   // 點在右半邊時提示放左邊，避免超出卡片
   return { left: `${left}%`, top: `${top}%`, transform: `translate(${left > 55 ? 'calc(-100% - 16px)' : '16px'}, -50%)` }
 })
@@ -233,7 +295,7 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
       <div class="map-wrap">
         <svg
           class="map"
-          :viewBox="`0 0 ${SIZE} ${SIZE}`"
+          :viewBox="`0 0 ${W} ${H}`"
           role="img"
           :aria-label="`和弦情緒軌跡，共 ${path.steps.length} 步，用到 ${path.usage.length} 種和弦性質`"
         >
@@ -244,14 +306,49 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
             <marker id="emo-arrow-now" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="30" markerHeight="30" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" class="arrow-now" />
             </marker>
+            <clipPath id="emo-wheel-clip">
+              <circle :cx="px(0)" :cy="py(0)" :r="R * UNIT" />
+            </clipPath>
           </defs>
 
-          <image :href="wheelUrl" x="0" y="0" :width="SIZE" :height="SIZE" class="wheel" />
+          <!-- 背景色輪：裁成圓形，±10 在圓周上 -->
+          <image
+            :href="wheelUrl"
+            :x="px(-R)"
+            :y="py(R)"
+            :width="2 * R * UNIT"
+            :height="2 * R * UNIT"
+            clip-path="url(#emo-wheel-clip)"
+            class="wheel"
+          />
 
-          <!-- 中心十字：只用來看出原點與四個象限，不標刻度 -->
           <g class="axes" aria-hidden="true">
-            <line :x1="px(-RANGE + 0.5)" :y1="py(0)" :x2="px(RANGE - 0.5)" :y2="py(0)" />
-            <line :x1="px(0)" :y1="py(-RANGE + 0.5)" :x2="px(0)" :y2="py(RANGE - 0.5)" />
+            <!-- 圓周、半徑 5 的虛線圓、十字軸 -->
+            <circle :cx="px(0)" :cy="py(0)" :r="R * UNIT" class="rim" />
+            <circle :cx="px(0)" :cy="py(0)" :r="5 * UNIT" class="half" />
+            <line :x1="px(-R)" :y1="py(0)" :x2="px(R)" :y2="py(0)" />
+            <line :x1="px(0)" :y1="py(-R)" :x2="px(0)" :y2="py(R)" />
+            <!-- 刻度：x 軸在軸線下方，y 軸在軸線左邊 -->
+            <template v-for="t in AXIS_TICKS" :key="t">
+              <line :x1="px(t)" :y1="py(0) - 6" :x2="px(t)" :y2="py(0) + 6" />
+              <text :x="px(t)" :y="py(0) + 28" text-anchor="middle" class="tick-text">{{ t }}</text>
+              <template v-if="Math.abs(t) < R">
+                <line :x1="px(0) - 6" :y1="py(t)" :x2="px(0) + 6" :y2="py(t)" />
+                <text :x="px(0) - 12" :y="py(t) + 7" text-anchor="end" class="tick-text">{{ t }}</text>
+              </template>
+            </template>
+            <!-- 四個象限、軸的兩端 -->
+            <text v-for="q in QUADRANTS" :key="q.key" :x="px(q.x)" :y="py(q.y)" text-anchor="middle" class="quad-text">{{ q.text }}</text>
+            <text v-for="a in AXIS_LABELS" :key="a.key" :x="px(a.x)" :y="py(a.y)" :text-anchor="a.anchor" class="axis-text">{{ a.text }}</text>
+          </g>
+
+          <!-- 圓周外的情緒詞 -->
+          <g class="ring" aria-hidden="true">
+            <line v-for="t in ringTicks" :key="t.key" :x1="t.x1" :y1="t.y1" :x2="t.x2" :y2="t.y2" class="ring-tick" />
+            <circle v-for="t in ringTicks" :key="'d' + t.key" :cx="t.x1" :cy="t.y1" r="3.5" class="ring-dot" />
+            <text v-for="g in ringLabels" :key="g.key" :text-anchor="g.anchor" class="ring-text">
+              <tspan v-for="l in g.lines" :key="l.zh" :x="g.x" :y="l.y"><tspan class="ring-zh">{{ l.zh }}</tspan> {{ l.en }}</tspan>
+            </text>
           </g>
 
           <!-- 沒用到的定義點 -->
@@ -385,15 +482,15 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 <style scoped>
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 560px) minmax(240px, 1fr);
+  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
 
-/* 背景圖是深色星空，兩種主題都放在深色底板上，圖上的點、線、字用固定的淺色＋深色外框 */
+/* 色輪很鮮豔，兩種主題都放在深色底板上，圖上的點、線、字用固定的淺色＋深色外框 */
 .map-wrap {
   position: relative;
-  background: #05060f;
+  background: #0d0f16;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
@@ -411,7 +508,72 @@ const coord = (e) => `(${num(e.x)}, ${num(e.y)})`
 .axes line {
   stroke: #ffffff;
   stroke-width: 2;
-  opacity: 0.35;
+  opacity: 0.55;
+}
+
+.axes .rim {
+  fill: none;
+  stroke: #8a8f9e;
+  stroke-width: 2;
+}
+
+.axes .half {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 8;
+  opacity: 0.45;
+}
+
+/* 圓內的字：白字＋深色外框，在色輪上也看得清楚 */
+.tick-text,
+.quad-text,
+.axis-text {
+  font-family: var(--font-sans);
+  paint-order: stroke;
+  stroke: #0b0d16;
+  stroke-linejoin: round;
+}
+
+.tick-text {
+  fill: #e6e8ef;
+  font-size: 18px;
+  stroke-width: 4px;
+}
+
+.quad-text {
+  fill: #e6e8ef;
+  font-size: 20px;
+  stroke-width: 5px;
+  opacity: 0.85;
+}
+
+.axis-text {
+  fill: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
+  stroke-width: 6px;
+}
+
+/* 圓周外的情緒詞 */
+.ring-tick {
+  stroke: #8a8f9e;
+  stroke-width: 2;
+}
+
+.ring-dot {
+  fill: #8a8f9e;
+}
+
+.ring-text {
+  fill: #a6acc0;
+  font-size: 19px;
+  font-family: var(--font-sans);
+}
+
+.ring-zh {
+  fill: #e6e8ef;
+  font-weight: 700;
 }
 
 .pt-unused {
