@@ -1,7 +1,8 @@
 <script setup>
 /**
  * 播放器（固定在畫面上方）
- * - 檔名、播放／暫停、進度條（可點擊或拖曳跳轉）、正在播放的和弦、換檔案
+ * - 檔名、播放／暫停、進度條（可點擊或拖曳跳轉）、正在播放的和弦、下載分析結果、換檔案
+ * - 載入的分析結果沒有音檔時：顯示「選擇音檔播放」，選了只拿來播放，不重新分析
  * - 快捷鍵：空白鍵播放／暫停、← → 前後 5 秒
  */
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
@@ -17,9 +18,12 @@ const props = defineProps({
   timeline: { type: Array, default: () => [] },
   // utils/chords.js buildChordInfo() 的結果
   chordInfo: { type: Map, required: true },
+  // 從分析結果檔載入、還沒有音檔
+  needsAudio: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['pick'])
+// pick：換檔案（WAV 重新分析，或另一個分析結果檔）；attach：只選音檔來播放；download：下載分析結果
+const emit = defineEmits(['pick', 'attach', 'download'])
 
 const pb = usePlayback()
 
@@ -133,7 +137,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
     </div>
 
-    <FilePickButton class="change" @pick="emit('pick', $event)" />
+    <FilePickButton v-if="needsAudio" class="change attach" @pick="emit('attach', $event)">
+      <AppIcon name="play" :size="16" /><span class="btn-text">選擇音檔播放</span>
+    </FilePickButton>
+    <button type="button" class="btn change" title="把這次的分析結果存成 .json，之後可以直接載入，不用重新分析" @click="emit('download')">
+      <AppIcon name="download" :size="16" /><span class="btn-text">下載結果</span>
+    </button>
+    <FilePickButton class="change" accept=".wav,audio/wav,.json,application/json" @pick="emit('pick', $event)" />
   </div>
 </template>
 
@@ -263,7 +273,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   pointer-events: none;
 }
 
+.change {
+  flex-shrink: 0;
+}
+
+/* 還沒有音檔時，提醒選音檔的按鈕用主色 */
+.attach {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 @media (max-width: 640px) {
+  /* 手機寬度：下載、選音檔只留圖示 */
+  .btn-text {
+    display: none;
+  }
+
   .player {
     padding: 0.6rem 0.75rem;
     gap: 10px;

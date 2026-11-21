@@ -2,15 +2,26 @@
 /**
  * 流程：選檔（拖放或點選）→ 自動開始分析 → 顯示結果
  * 結果上方的播放器有「換檔案」，選了新檔就重新分析
+ *
+ * 分析結果檔（.json，見 utils/resultFile.js）：
+ * - 結果頁可以「下載結果」；上傳頁（或換檔案時）選 .json 就直接載入，不重新分析
+ * - 載入的結果沒有音檔，播放器會出現「選擇音檔播放」，選了只拿來播放
  */
 import { ref } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import UploadZone from '@/components/UploadZone.vue'
 import AnalysisStatus from '@/components/AnalysisStatus.vue'
 import ResultsPanel from '@/components/ResultsPanel.vue'
+import FilePickButton from '@/components/common/FilePickButton.vue'
+import AppIcon from '@/components/common/AppIcon.vue'
 import { analyzeAudio, checkUpload, UploadRejectedError } from '@/utils/api.js'
+import { isResultFile, readResultFile, downloadResult } from '@/utils/resultFile.js'
 
-const selectedFile = ref(null)
+// 音檔（載入分析結果時可能沒有）與顯示的檔名
+const audioFile = ref(null)
+const sourceName = ref('')
+// 從分析結果檔載入時：檔案裡記錄的儲存時間（ISO 字串；沒有記錄時是空字串）；不是載入的是 null
+const loadedSavedAt = ref(null)
 const analysisResult = ref(null)
 const failed = ref(false)
 // 失敗原因（後端拒絕檔案時才有）
@@ -29,8 +40,12 @@ const isWav = (file) => file.name.toLowerCase().endsWith('.wav') || file.type ==
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function onFileSelected(file) {
+  if (isResultFile(file)) {
+    loadResult(file)
+    return
+  }
   if (!isWav(file)) {
-    alert('請上傳 .wav 格式的音訊檔案')
+    alert('請上傳 .wav 格式的音訊檔案，或之前下載的分析結果（.json）')
     return
   }
   const problem = await checkUpload(file)
@@ -38,8 +53,40 @@ async function onFileSelected(file) {
     alert(problem)
     return
   }
-  selectedFile.value = file
+  audioFile.value = file
+  sourceName.value = file.name
+  loadedSavedAt.value = null
   analyze()
+}
+
+/** 載入之前下載的分析結果：不分析，直接顯示 */
+async function loadResult(file) {
+  let saved
+  try {
+    saved = await readResultFile(file)
+  } catch (err) {
+    alert(err.message)
+    return
+  }
+  audioFile.value = null
+  sourceName.value = saved.fileName
+  loadedSavedAt.value = saved.savedAt ?? ''
+  failed.value = false
+  resultKey.value++
+  analysisResult.value = saved.data
+}
+
+/** 載入的分析結果補上音檔：只拿來播放，不重新分析 */
+function onAttachAudio(file) {
+  if (!isWav(file)) {
+    alert('請選擇 .wav 格式的音訊檔案')
+    return
+  }
+  audioFile.value = file
+}
+
+function onDownload() {
+  if (analysisResult.value) downloadResult(analysisResult.value, sourceName.value)
 }
 
 async function analyze() {
@@ -59,7 +106,7 @@ async function analyze() {
 
   let result
   try {
-    result = await analyzeAudio(selectedFile.value)
+    result = await analyzeAudio(audioFile.value)
   } catch (err) {
     console.error('[ChordLab] 分析失敗：', err)
     failed.value = true
@@ -81,11 +128,20 @@ async function analyze() {
     <div class="app">
       <AppHeader />
 
-      <UploadZone v-if="!selectedFile" @file-selected="onFileSelected" />
+      <template v-if="!sourceName">
+        <UploadZone @file-selected="onFileSelected" />
+        <div class="load-saved">
+          <span class="load-text">已經分析過了？</span>
+          <FilePickButton accept=".json,application/json" @pick="onFileSelected">
+            <AppIcon name="upload" :size="16" />載入之前的分析結果
+          </FilePickButton>
+          <!-- <span class="load-hint">選擇結果頁「下載結果」存下來的 .json 檔，不用重新分析</span> -->
+        </div>
+      </template>
 
       <AnalysisStatus
         v-else-if="!analysisResult"
-        :file-name="selectedFile.name"
+        :file-name="sourceName"
         :progress="progress"
         :label="progressLabel"
         :failed="failed"
@@ -98,9 +154,12 @@ async function analyze() {
         v-else
         :key="resultKey"
         :data="analysisResult"
-        :audio-file="selectedFile"
-        :file-name="selectedFile.name"
+        :audio-file="audioFile"
+        :file-name="sourceName"
+        :loaded-saved-at="loadedSavedAt"
         @file-selected="onFileSelected"
+        @attach-audio="onAttachAudio"
+        @download="onDownload"
       />
     </div>
   </div>
@@ -115,5 +174,27 @@ async function analyze() {
 .app {
   max-width: 1280px;
   margin: 0 auto;
+}
+
+/* 上傳區下方：載入之前的分析結果 */
+.load-saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  margin-top: 1rem;
+}
+
+.load-text {
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.load-hint {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 </style>

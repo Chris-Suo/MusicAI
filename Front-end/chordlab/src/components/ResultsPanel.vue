@@ -40,9 +40,19 @@ const props = defineProps({
   // 使用者上傳的音檔，播放器用來播放對照
   audioFile: { type: Object, default: null },
   fileName: { type: String, default: '' },
+  // 從分析結果檔載入時：檔案記錄的儲存時間（ISO；沒有記錄時是空字串）；不是載入的是 null
+  loadedSavedAt: { type: String, default: null },
 })
 
-defineEmits(['file-selected'])
+// 「從檔案載入」提示裡的儲存時間
+const savedAtText = computed(() => {
+  if (!props.loadedSavedAt) return ''
+  const d = new Date(props.loadedSavedAt)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short' })
+})
+
+// file-selected：換檔案；attach-audio：載入的結果補上音檔；download：下載分析結果
+defineEmits(['file-selected', 'attach-audio', 'download'])
 
 const analysis = computed(() => buildAnalysis(props.data))
 
@@ -86,12 +96,29 @@ const tabs = computed(() => {
 
 <template>
   <div class="results">
+    <div v-if="loadedSavedAt !== null" class="banner info" role="status">
+      <AppIcon name="file" :size="20" />
+      <span>
+        這是從檔案載入的分析結果<template v-if="savedAtText">（{{ savedAtText }} 儲存）</template>，沒有重新分析。
+        <template v-if="!audioFile">要播放請按播放器的「選擇音檔播放」，選同一首歌的 WAV 檔。</template>
+      </span>
+    </div>
+
     <div v-if="analysis.isMock" class="banner" role="status">
       <AppIcon name="alert" :size="20" />
       <span>無法連線到分析伺服器，下面顯示的是<strong>示範資料</strong>，不是這個檔案的分析結果。</span>
     </div>
 
-    <PlayerBar :file-name="fileName" :total="total" :timeline="analysis.timeline" :chord-info="analysis.chordInfo" @pick="$emit('file-selected', $event)" />
+    <PlayerBar
+      :file-name="fileName"
+      :total="total"
+      :timeline="analysis.timeline"
+      :chord-info="analysis.chordInfo"
+      :needs-audio="!audioFile"
+      @pick="$emit('file-selected', $event)"
+      @attach="$emit('attach-audio', $event)"
+      @download="$emit('download')"
+    />
 
     <TabBar v-model="tab" :tabs="tabs" label="分析類別" />
 
@@ -169,6 +196,15 @@ const tabs = computed(() => {
 
 .banner :deep(.icon) {
   color: var(--warning);
+}
+
+/* 從檔案載入的提示：一般資訊，用主色 */
+.banner.info {
+  border-color: var(--accent);
+}
+
+.banner.info :deep(.icon) {
+  color: var(--accent);
 }
 
 .panel {
