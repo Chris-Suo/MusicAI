@@ -1,10 +1,11 @@
 <script setup>
 /**
  * 流程：選檔（拖放或點選）→ 自動開始分析 → 顯示結果
- * 結果上方的播放器有「換檔案」，選了新檔就重新分析
+ * 結果上方的播放器（和分析失敗時）有「返回」，回到上傳頁選新的音檔或分析結果
+ *   結果頁按返回時先問要不要下載分析結果（從分析結果檔載入的不問，內容跟檔案一樣）
  *
  * 分析結果檔（.json，見 utils/resultFile.js）：
- * - 結果頁可以「下載結果」；上傳頁（或換檔案時）選 .json 就直接載入，不重新分析
+ * - 結果頁可以「下載結果」；上傳頁選 .json 就直接載入，不重新分析
  * - 載入的結果沒有音檔，播放器會出現「選擇音檔播放」，選了只拿來播放
  */
 import { ref } from 'vue'
@@ -12,6 +13,7 @@ import AppHeader from '@/components/AppHeader.vue'
 import UploadZone from '@/components/UploadZone.vue'
 import AnalysisStatus from '@/components/AnalysisStatus.vue'
 import ResultsPanel from '@/components/ResultsPanel.vue'
+import ConfirmBackDialog from '@/components/ConfirmBackDialog.vue'
 import FilePickButton from '@/components/common/FilePickButton.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { analyzeAudio, checkUpload, UploadRejectedError } from '@/utils/api.js'
@@ -85,6 +87,36 @@ function onAttachAudio(file) {
   audioFile.value = file
 }
 
+// 返回前的確認對話框
+const confirmBack = ref(false)
+
+/** 結果頁按返回：剛分析完的結果先問要不要下載；從檔案載入的直接返回 */
+function requestBack() {
+  if (loadedSavedAt.value !== null) goBack()
+  else confirmBack.value = true
+}
+
+function downloadAndBack() {
+  onDownload()
+  confirmBack.value = false
+  goBack()
+}
+
+function leaveWithoutDownload() {
+  confirmBack.value = false
+  goBack()
+}
+
+/** 返回上傳頁：清掉目前的檔案與結果（結果區卸載時播放器會一起停止） */
+function goBack() {
+  audioFile.value = null
+  sourceName.value = ''
+  loadedSavedAt.value = null
+  analysisResult.value = null
+  failed.value = false
+  errorText.value = ''
+}
+
 function onDownload() {
   if (analysisResult.value) downloadResult(analysisResult.value, sourceName.value)
 }
@@ -147,7 +179,7 @@ async function analyze() {
         :failed="failed"
         :error-text="errorText"
         @retry="analyze"
-        @file-selected="onFileSelected"
+        @back="goBack"
       />
 
       <ResultsPanel
@@ -157,9 +189,17 @@ async function analyze() {
         :audio-file="audioFile"
         :file-name="sourceName"
         :loaded-saved-at="loadedSavedAt"
-        @file-selected="onFileSelected"
+        @back="requestBack"
         @attach-audio="onAttachAudio"
         @download="onDownload"
+      />
+
+      <ConfirmBackDialog
+        :open="confirmBack"
+        :file-name="sourceName"
+        @download="downloadAndBack"
+        @leave="leaveWithoutDownload"
+        @cancel="confirmBack = false"
       />
     </div>
   </div>

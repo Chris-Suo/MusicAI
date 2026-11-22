@@ -43,6 +43,10 @@ defineProps({
       <path d="M3 7l9 5 9-5" />
       <path d="M12 12v10" />
     </template>
+    <!-- 返回：往左的箭頭 -->
+    <template v-else-if="name === 'back'">
+      <path d="M15 18l-6-6 6-6" />
+    </template>
     <!-- 下載：往下的箭頭＋底線 -->
     <template v-else-if="name === 'download'">
       <path d="M12 4v11" />

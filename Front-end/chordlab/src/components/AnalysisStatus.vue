@@ -1,9 +1,8 @@
 <script setup>
 /**
- * 分析中：檔名＋進度條；失敗時改成錯誤訊息＋重試／換檔案
+ * 分析中：檔名＋進度條；失敗時改成錯誤訊息＋重試／返回（回到上傳頁）
  */
 import AppIcon from '@/components/common/AppIcon.vue'
-import FilePickButton from '@/components/common/FilePickButton.vue'
 
 defineProps({
   fileName: { type: String, required: true },
@@ -14,7 +13,7 @@ defineProps({
   errorText: { type: String, default: '' },
 })
 
-defineEmits(['retry', 'file-selected'])
+defineEmits(['retry', 'back'])
 </script>
 
 <template>
@@ -33,9 +32,9 @@ defineEmits(['retry', 'file-selected'])
       </template>
     </div>
     <template v-if="failed">
-      <!-- 檔案本身被拒絕時重試也沒用，只留換檔案 -->
+      <!-- 檔案本身被拒絕時重試也沒用，只留返回 -->
       <button v-if="!errorText" class="btn primary" type="button" @click="$emit('retry')">重試</button>
-      <FilePickButton @pick="$emit('file-selected', $event)" />
+      <button class="btn" type="button" @click="$emit('back')"><AppIcon name="back" :size="16" />返回</button>
     </template>
   </div>
 </template>

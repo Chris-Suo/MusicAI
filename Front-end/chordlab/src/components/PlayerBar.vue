@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 播放器（固定在畫面上方）
- * - 檔名、播放／暫停、進度條（可點擊或拖曳跳轉）、正在播放的和弦、下載分析結果、換檔案
+ * - 檔名、播放／暫停、進度條（可點擊或拖曳跳轉）、正在播放的和弦、下載分析結果、返回（回到上傳頁）
  * - 載入的分析結果沒有音檔時：顯示「選擇音檔播放」，選了只拿來播放，不重新分析
  * - 快捷鍵：空白鍵播放／暫停、← → 前後 5 秒
  */
@@ -22,8 +22,8 @@ const props = defineProps({
   needsAudio: { type: Boolean, default: false },
 })
 
-// pick：換檔案（WAV 重新分析，或另一個分析結果檔）；attach：只選音檔來播放；download：下載分析結果
-const emit = defineEmits(['pick', 'attach', 'download'])
+// back：返回上傳頁；attach：只選音檔來播放；download：下載分析結果
+const emit = defineEmits(['back', 'attach', 'download'])
 
 const pb = usePlayback()
 
@@ -143,7 +143,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <button type="button" class="btn change" title="把這次的分析結果存成 .json，之後可以直接載入，不用重新分析" @click="emit('download')">
       <AppIcon name="download" :size="16" /><span class="btn-text">下載結果</span>
     </button>
-    <FilePickButton class="change" accept=".wav,audio/wav,.json,application/json" @pick="emit('pick', $event)" />
+    <button type="button" class="btn change" title="回到上傳頁，選擇新的音檔或分析結果" @click="emit('back')">
+      <AppIcon name="back" :size="16" />返回
+    </button>
   </div>
 </template>
 

@@ -1,7 +1,7 @@
 <script setup>
 /**
  * 分析結果的版面
- * - 上方：共用播放器（固定在畫面上方，含換檔案）
+ * - 上方：共用播放器（固定在畫面上方，含下載結果、返回）
  * - 下方四個分頁：和弦調性／音高頻率／速度節拍／總樂性元，分頁上顯示各自的重點數字
  *   調音基準放在「音高頻率」（它是頻率的基準），調性情緒與情境放在「和弦調性」，
  *   音量（響度）放在「速度節拍」（速度和力度都是樂曲的表情要素）
@@ -29,6 +29,7 @@ import TempoEmotionMap from '@/components/rhythm/TempoEmotionMap.vue'
 // 三維位置先隱藏（2026-11-20），要恢復時把這行和下面 <MusicSpace3D> 的註解拿掉
 // import MusicSpace3D from '@/components/overall/MusicSpace3D.vue'
 import OverallScore from '@/components/overall/OverallScore.vue'
+import OverallTrajectory from '@/components/overall/OverallTrajectory.vue'
 import { createPlayback, PLAYBACK_KEY } from '@/composables/usePlayback.js'
 import { buildAnalysis } from '@/utils/analysis.js'
 import { overallPoint } from '@/utils/overall.js'
@@ -51,8 +52,8 @@ const savedAtText = computed(() => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short' })
 })
 
-// file-selected：換檔案；attach-audio：載入的結果補上音檔；download：下載分析結果
-defineEmits(['file-selected', 'attach-audio', 'download'])
+// back：返回上傳頁；attach-audio：載入的結果補上音檔；download：下載分析結果
+defineEmits(['back', 'attach-audio', 'download'])
 
 const analysis = computed(() => buildAnalysis(props.data))
 
@@ -115,7 +116,7 @@ const tabs = computed(() => {
       :timeline="analysis.timeline"
       :chord-info="analysis.chordInfo"
       :needs-audio="!audioFile"
-      @pick="$emit('file-selected', $event)"
+      @back="$emit('back')"
       @attach="$emit('attach-audio', $event)"
       @download="$emit('download')"
     />
@@ -161,6 +162,7 @@ const tabs = computed(() => {
     <section v-show="tab === 'overall'" id="panel-overall" class="panel" role="tabpanel" aria-labelledby="tab-overall">
       <!-- 三維位置先隱藏 -->
       <!-- <MusicSpace3D :timeline="analysis.timeline" :bpm="analysis.bpm" /> -->
+      <OverallTrajectory :timeline="analysis.timeline" :contour="analysis.contour" :beats="analysis.beats" :length="total" :key-info="analysis.key" />
       <OverallScore :timeline="analysis.timeline" :contour="analysis.contour" :beats="analysis.beats" :length="total" :key-info="analysis.key" />
     </section>
   </div>

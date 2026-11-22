@@ -68,6 +68,69 @@ export function overallPoint({ timeline, contour, beats = [], length, key = null
 }
 
 // ---------------------------------------------------------------------------
+// 綜合軌跡：每 15 秒算一次綜合座標（權重跟最終座標相同）
+// ---------------------------------------------------------------------------
+
+/**
+ * 一條軌跡在 [ws, we) 這段時間的座標：跟這段時間重疊的每一步，依重疊的時間長短加權平均
+ * 三條軌跡切段的方式不同（速度會把連續同區間的段合成一步；和弦也可能切到「和弦順序」版本），用重疊時間算就都能對上
+ * 這段時間完全沒有軌跡點時回傳 null
+ */
+function overlapMean(steps, ws, we) {
+  let w = 0
+  let x = 0
+  let y = 0
+  for (const s of steps) {
+    const d = Math.min(we, s.end) - Math.max(ws, s.start)
+    if (d <= 0) continue
+    w += d
+    x += s.emo.x * d
+    y += s.emo.y * d
+  }
+  return w > 0 ? { x: x / w, y: y / w } : null
+}
+
+const clock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
+
+/**
+ * 每 windowSec 秒一段的綜合座標：60% 這段的和弦座標 ＋ 20% 音高座標 ＋ 20% 速度座標
+ * 三項缺任何一項的段（例如前奏沒有旋律、沒有拍點）不算綜合座標，不畫進軌跡
+ * @param {object} opts  同 overallPoint()
+ * @returns {{
+ *   windows: { no, start, end, name, parts: { chord, pitch, tempo }, point: { x, y } | null, missing: string[] }[],
+ *   steps: { emo: { key, x, y, short, name, window }, start, end, win }[],   // 有綜合座標的段，依時間排序
+ *   windowSec: number,
+ * }}
+ */
+export function overallWindows({ timeline, contour, beats = [], length, key = null, windowSec = WINDOW_SEC }) {
+  const mode = key?.mode === 'minor' ? 'minor' : 'major'
+  const tracks = {
+    chord: buildTrajectory(timeline).steps,
+    pitch: buildPitchEmotionPath(contour, length, key).steps,
+    tempo: buildTempoEmotionPath(beats, length, mode).steps,
+  }
+  const NAMES = { chord: '和弦', pitch: '音高', tempo: '速度' }
+  const windows = []
+  const steps = []
+  for (let ws = 0, no = 1; ws < length; ws += windowSec, no++) {
+    const we = Math.min(ws + windowSec, length)
+    const parts = {}
+    for (const k of Object.keys(tracks)) parts[k] = overlapMean(tracks[k], ws, we)
+    const missing = Object.keys(parts).filter((k) => !parts[k]).map((k) => NAMES[k])
+    const point = missing.length
+      ? null
+      : {
+          x: Math.round((POINT_WEIGHTS.chord * parts.chord.x + POINT_WEIGHTS.pitch * parts.pitch.x + POINT_WEIGHTS.tempo * parts.tempo.x) * 100) / 100,
+          y: Math.round((POINT_WEIGHTS.chord * parts.chord.y + POINT_WEIGHTS.pitch * parts.pitch.y + POINT_WEIGHTS.tempo * parts.tempo.y) * 100) / 100,
+        }
+    const win = { no, start: ws, end: we, name: `${clock(ws)}–${clock(we)}`, parts, point, missing }
+    windows.push(win)
+    if (point) steps.push({ emo: { key: `ow-${no}`, ...point, short: String(no), name: win.name, window: no }, start: ws, end: we, win })
+  }
+  return { windows, steps, windowSec }
+}
+
+// ---------------------------------------------------------------------------
 // 舊版（目前沒有使用）：60% 情緒座標 ＋ 20% 平均音高 Hz ＋ 20% 平均速度 BPM，原始數值直接相加
 // ---------------------------------------------------------------------------
 

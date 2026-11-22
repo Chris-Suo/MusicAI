@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 「換檔案」按鈕：點了開檔案選擇視窗，選好就 emit('pick', file)
+ * 選檔案按鈕：點了開檔案選擇視窗，選好就 emit('pick', file)；按鈕文字用插槽傳入
  * accept 決定能選哪些檔案（預設只有 WAV；也可以加上 .json 分析結果檔）
  */
 defineProps({
@@ -19,7 +19,7 @@ function onChange(e) {
 <template>
   <label class="btn pick">
     <input type="file" :accept="accept" class="pick-input" @change="onChange" />
-    <slot>換檔案</slot>
+    <slot>選擇檔案</slot>
   </label>
 </template>
 
