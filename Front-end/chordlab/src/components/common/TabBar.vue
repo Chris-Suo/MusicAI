@@ -62,27 +62,29 @@ function onKey(e) {
   margin: 1.25rem 0;
 }
 
+/* 分頁按鈕跟卡片同一套質感：平常浮起，選到的那一個凹下去 */
 .tab {
   display: flex;
   align-items: center;
   gap: 10px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-md);
+  box-shadow: var(--lift-sm);
   padding: 0.8rem 1.1rem;
   color: var(--text);
-  transition: border-color 0.15s, background 0.15s;
+  transition: box-shadow 0.15s, background 0.15s;
   min-width: 0;
 }
 
 .tab:hover {
-  border-color: var(--border-strong);
+  box-shadow: var(--lift);
 }
 
+/* 選到的分頁：凹陷＋主色淡底；主色的細框留著，分頁是最重要的位置指示，不能只靠影子 */
 .tab.on {
-  border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent), var(--press);
 }
 
 .tab-icon {

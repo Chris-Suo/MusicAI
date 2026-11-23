@@ -21,6 +21,10 @@
   --surface2: #f3f4f8;
   --surface3: #e4e7ef;
   --border: #d2d6e1;
+  /* --border 的複本，給「自己掛了另一組色票」的區塊用（目前是情緒輪的 .map-wrap：
+     它整塊固定走深色，但外框要跟著整頁的主題走，不然淺色主題下框會黑到看不見）。
+     var() 是在宣告它的元素上就代換掉的，所以這裡拿到的一定是 :root 這一層的 --border */
+  --page-border: var(--border);
   --border-strong: #9ea5b9;
   --text: #0f111a;
   --text2: #343a4e;
@@ -59,23 +63,46 @@
 
   --playhead: #e34948;
 
+  /* 情緒輪底圖：每一片扇形的顏色由角度決定（utils/emotionWheel.js 的 WHEEL_ANCHORS，
+     色相、明度、彩度三個都量自原本的點陣色輪），這裡只做整體微調
+     --wheel-dl 整體提亮（淺色底板上要稍微提，深色不用）、--wheel-sat 彩度倍率、
+     --wheel-ink 色輪的不透明度，也是呼吸動畫的上限 */
+  --wheel-plate: #fcfcff;
+  --wheel-dl: 0.02;
+  --wheel-sat: 1;
+  --wheel-ink: 1;
+
   /* 狀態（一定搭配圖示與文字） */
   --good: #0ca30c;
   --warning: #fab219;
   --serious: #ec835a;
 
-  --shadow-sm: 0 1px 2px rgba(15, 17, 26, 0.06), 0 1px 3px rgba(15, 17, 26, 0.08);
   --shadow-md: 0 8px 24px rgba(15, 17, 26, 0.14);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* 卡片與面板的質感：不用邊框，改用「上亮下暗」的柔影做出浮起與凹陷。
+     光源固定在左上角，所以亮邊一律在左上、暗影一律在右下，整站才會像同一塊材質雕出來的。
+     --lift    浮起：卡片本身
+     --lift-sm 浮起：卡片裡可以點的小塊（清單列、按鈕、分頁）
+     --press   凹陷：選中／播放到的那一塊，取代原本「左邊一條色條」的做法 */
+  --lift: -3px -3px 8px rgba(255, 255, 255, 0.95), 4px 6px 16px rgba(17, 21, 38, 0.1);
+  --lift-sm: -2px -2px 5px rgba(255, 255, 255, 0.85), 2px 3px 8px rgba(17, 21, 38, 0.08);
+  --press: inset 3px 3px 7px rgba(17, 21, 38, 0.1), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 
   --font-sans: 'DM Sans', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
   --font-mono: 'Space Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
-:root[data-theme='dark'] {
+/* 深色色票。
+   `.map-wrap`（五張情緒軌跡卡裡的圓形區域）也掛在這裡：色輪是飽和色，淺底會把它洗淡，
+   深底才濃得起來，所以那一塊不跟主題走，白天黑夜都固定用深色。
+   直接共用同一組宣告，而不是另外抄一份，這樣改深色主題時圓裡面會自動跟著改。
+   覆寫只在 .map-wrap 之內生效，卡片其他地方（標題、右邊的面板、清單）照常跟著主題走。 */
+:root[data-theme='dark'],
+.map-wrap {
   color-scheme: dark;
 
   --bg: #0f1118;
@@ -115,8 +142,29 @@
 
   --playhead: #e66767;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --wheel-plate: #141823;
+  --wheel-dl: 0;
+  --wheel-sat: 1;
+  --wheel-ink: 0.95;
+
   --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.55);
+
+  /* 深色底下亮邊要收得很淡，否則會看起來像描邊 */
+  --lift: -2px -2px 6px rgba(255, 255, 255, 0.05), 4px 6px 16px rgba(0, 0, 0, 0.55);
+  --lift-sm: -1px -1px 4px rgba(255, 255, 255, 0.04), 2px 3px 8px rgba(0, 0, 0, 0.45);
+  --press: inset 3px 3px 8px rgba(0, 0, 0, 0.6), inset -1px -1px 4px rgba(255, 255, 255, 0.05);
+}
+
+/* 圓裡面在深色色票之上再調一次：字更白、底板更黑。
+   圓裡的字幾乎都疊在飽和的色輪上，不是疊在底板上，靠的是字外面那圈描邊
+   （EmotionWheelBackdrop.vue 與 EmotionTrajectoryMap.vue 的 stroke: var(--wheel-plate)）
+   把字跟色輪切開，所以底板越黑、描邊就越黑，字也就越跳得出來。
+   只寫差異的那幾個，其餘照深色色票，深色主題本身完全不受影響 */
+.map-wrap {
+  --wheel-plate: #0a0c12;
+  --text: #ffffff;
+  --text2: #e9ecf5;
+  --muted: #c6ccda;
 }
 
 html,
@@ -170,11 +218,12 @@ button {
  * 共用元件樣式
  * ------------------------------------------------------------------------- */
 
-/* 卡片 */
+/* 卡片：沒有邊框，靠柔影浮在底色上（質感見色票區的 --lift） */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-lg);
+  box-shadow: var(--lift);
   padding: 1.5rem 1.75rem;
   min-width: 0;
 }
@@ -213,35 +262,39 @@ button {
   color: var(--muted);
 }
 
-/* 分段切換按鈕 */
+/* 分段切換（和弦進行的「簡譜／羅馬」、「1 小節／半小節」）：
+   兩顆都是看得出來的按鈕——平常浮起，選到的凹下去＋主色淡底與細框。
+   這是全站「選到了」的同一套寫法（分頁 .tab.on、循環小卡 .chip.active），
+   同一張卡裡下面就是循環小卡，兩者長得一樣才不會像兩套東西。
+   原本是「沒選到的那一顆完全沒有底色」，看起來像兩個字而不是按鈕 */
 .seg {
   display: inline-flex;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-  gap: 2px;
+  gap: 5px;
 }
 
 .seg button {
-  background: none;
+  background: var(--surface2);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--lift-sm);
   color: var(--text2);
   font-size: 0.85rem;
-  font-weight: 500;
-  padding: 4px 12px;
+  font-weight: 600;
+  padding: 5px 13px;
   white-space: nowrap;
+  transition: box-shadow 0.15s, background 0.15s, color 0.15s;
 }
 
 .seg button:hover {
   color: var(--text);
-  background: var(--surface3);
+  box-shadow: var(--lift);
 }
 
+/* 選到的那一顆：凹下去，主色的細框跟 .tab.on、.chip.active 一樣留著 */
 .seg button.on {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1.5px var(--accent), var(--press);
 }
 
 /* 一般按鈕 */
@@ -251,18 +304,25 @@ button {
   justify-content: center;
   gap: 6px;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: none;
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 5px 12px;
+  box-shadow: var(--lift-sm);
+  padding: 6px 13px;
   font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
+  transition: box-shadow 0.15s, background 0.15s;
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--border-strong);
   background: var(--surface3);
+  box-shadow: var(--lift);
+}
+
+/* 按下去就真的凹下去 */
+.btn:active:not(:disabled) {
+  box-shadow: var(--press);
 }
 
 .btn:disabled {
@@ -272,13 +332,11 @@ button {
 
 .btn.primary {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--on-accent);
 }
 
 .btn.primary:hover:not(:disabled) {
   background: var(--accent-strong);
-  border-color: var(--accent-strong);
 }
 
 /* 和聲功能色：.fn-T / .fn-S / .fn-D / .fn-out / .fn-none 設定 --fc，元件裡用 var(--fc) */
@@ -421,11 +479,165 @@ button {
   align-items: center;
   gap: 6px;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: none;
+  box-shadow: var(--lift-sm);
   border-radius: 999px;
   padding: 2px 12px;
   font-size: 0.875rem;
   color: var(--text);
+}
+
+/* ---------------------------------------------------------------------------
+ * 情緒軌跡卡：五張卡的版面與右側面板共用同一套樣式
+ *   和弦情緒軌跡  components/harmony/ChordEmotionMap.vue
+ *   音高情緒軌跡  components/pitch/PitchEmotionMap.vue
+ *   速度情緒軌跡  components/rhythm/TempoEmotionMap.vue
+ *   綜合軌跡      components/overall/OverallTrajectory.vue
+ *   最終值        components/overall/OverallScore.vue
+ * 每張卡的 <style scoped> 只寫自己清單欄位的寬度等內部排版，狀態（滑過、播放到）一律在這裡，
+ * 所以五張卡的互動長得一模一樣，改一次就全部一起改。
+ * 圖本身在 components/common/EmotionTrajectoryMap.vue
+ * ------------------------------------------------------------------------- */
+
+/* 左邊是圖、右邊是面板；窄螢幕時改成上下 */
+.emo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .emo-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 面板最上面那一塊：播放到的那一段（最終值則是最終座標）
+   是卡片裡嵌著的一塊，用中性的底色分出範圍，不用邊框也不用陰影。
+   「正在播放」不靠底色說，靠下面 .now-head 前面那一顆紅點 */
+.now-box {
+  background: var(--surface2);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+  min-height: 120px;
+}
+
+/* 還沒播放：提示垂直置中 */
+.now-box.empty {
+  display: flex;
+  align-items: center;
+}
+
+.now-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+/* 「現在播放到這裡」的標示：一顆播放頭色的圓點。
+   軌跡圖上的播放頭本來就是同色的圓點，這裡用同一顆，
+   所以「圖上那顆＝這一塊」一眼讀得出來。
+   原本是整塊鋪淡紅底：一整塊底色是「區域」的語彙，會跟卡片搶面積，
+   而且淡到能直接放內文的紅看起來就像膚色；一個點才是「位置」。
+   最終值那張卡沒有 .now-head（它不是播放狀態），所以不會冒出這顆點 */
+.now-head::before {
+  content: '';
+  align-self: center;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--playhead);
+}
+
+/* 這一段最主要的那個值：和弦名、Hz、BPM */
+.now-main {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-coord {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.now-step {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 面板下半部的逐段清單：點一下從那一段開始播放
+   列有柔影，捲動容器會把邊緣的影子切掉，所以四邊各留一點內距、列距也加大 */
+.emo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 9px 4px 4px;
+}
+
+/* 可以點的清單列：情緒軌跡的各段清單（.emo-row）與和弦性質清單（.usage-row）共用
+   內部排版各自定，狀態一律在這裡：滑過會微微浮起，播放到的那一列在最左邊多一顆紅點 */
+.list-row {
+  position: relative;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+
+.list-row:hover {
+  background: var(--surface2);
+  box-shadow: var(--lift-sm);
+}
+
+/* 播放到的那一列：左邊一顆播放頭色的圓點，跟上面 .now-head::before 同一顆，
+   所以「清單這一列＝上面那一塊＝圖上的紅點」。底色完全不換，整排清單就不會被一塊色底
+   切成兩段，滑過的回饋也跟其他列一模一樣（上面的 .list-row:hover）。
+   圓點的左右位置靠各清單留出來的左內距（.emo-row、.usage-row 的 padding-left），
+   內距不分狀態都留著，所以播到哪一列都不會跟著振一下。
+   top 用 em 而不是 50%：這樣圓點會對齊第一行文字，兩行高的 .usage-row 也對得起來 */
+.list-row.now::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0.95em;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--playhead);
+}
+
+.list-row.now .emo-no {
+  color: var(--playhead);
+}
+
+.emo-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  /* 左邊的內距是紅點的位置（.list-row.now::before） */
+  padding: 4px 8px 4px 20px;
+}
+
+.emo-no {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -45,7 +45,7 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
 
     <div v-if="!steps.length" class="note">沒有主旋律音高資料，無法畫出音高情緒軌跡</div>
 
-    <div v-else class="layout">
+    <div v-else class="emo-layout">
       <EmotionTrajectoryMap
         v-model:hover="hoverKey"
         :steps="steps"
@@ -53,8 +53,8 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
         id-prefix="pitch"
         :label="`音高情緒軌跡，共 ${steps.length} 段`"
       >
-        <template #tip="{ steps: at }">
-          <template v-for="s in at" :key="s.emo.key">
+        <template #tip="{ point }">
+          <template v-for="s in point.steps" :key="s.emo.key">
             <strong>第 {{ s.emo.window }} 段・{{ s.emo.name }}</strong>
             <span>平均音高 {{ hzText(s.emo.hz) }}（{{ s.emo.note }}）</span>
             <span>座標 {{ coord(s.emo) }}・{{ quad(s.emo).title }}</span>
@@ -66,7 +66,7 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
         <div class="now-box" :class="{ empty: !currentStep }" aria-live="polite">
           <template v-if="currentStep">
             <div class="now-head">
-              <span class="now-hz">{{ hzText(currentStep.emo.hz) }}</span>
+              <span class="now-main">{{ hzText(currentStep.emo.hz) }}</span>
               <span class="now-note">{{ currentStep.emo.note }}</span>
               <span class="now-coord">{{ coord(currentStep.emo) }}</span>
             </div>
@@ -83,11 +83,11 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
         </div>
 
         <div class="sub-title">各段平均音高</div>
-        <ol class="windows">
+        <ol class="emo-list">
           <li v-for="(s, i) in steps" :key="s.emo.key">
             <button
               type="button"
-              class="w-row"
+              class="list-row emo-row w-row"
               :class="{ now: i === currentIndex }"
               :title="`點一下從 ${s.emo.name.split('–')[0]} 開始播放`"
               @pointerenter="hoverKey = posKey(s.emo)"
@@ -96,7 +96,7 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
               @blur="hoverKey = null"
               @click="pb.seek(s.start + 0.01)"
             >
-              <span class="w-no">{{ s.emo.window }}</span>
+              <span class="emo-no">{{ s.emo.window }}</span>
               <span class="w-time">{{ s.emo.name }}</span>
               <span class="w-hz">{{ hzText(s.emo.hz) }}</span>
               <span class="w-quad" :class="s.emo.quadrant">{{ quad(s.emo).title.split('、')[0] }}</span>
@@ -110,52 +110,11 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
 </template>
 
 <style scoped>
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-
-/* 右側 */
-.now-box {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--playhead);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
-  min-height: 120px;
-}
-
-.now-box.empty {
-  border-left-color: var(--border-strong);
-  display: flex;
-  align-items: center;
-}
-
-.now-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-}
-
-.now-hz {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
+/* 版面、.now-box 那一塊與逐段清單的共用樣式在 assets/main.css（五張情緒軌跡卡一致） */
 .now-note {
   font-size: 1.05rem;
   font-weight: 600;
   color: var(--text2);
-}
-
-.now-coord {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--muted);
 }
 
 /* 象限色：照附件 HTML（q1 琥珀、q2 酒紅、q3 深藍、q4 墨綠），兩種主題都用白字 */
@@ -197,50 +156,8 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
   color: var(--muted);
 }
 
-.now-step {
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.windows {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
 .w-row {
-  width: 100%;
-  display: grid;
   grid-template-columns: 1.8em auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  text-align: left;
-  color: var(--text);
-}
-
-.w-row:hover {
-  background: var(--surface2);
-  border-color: var(--border);
-}
-
-.w-row.now {
-  border-color: var(--playhead);
-}
-
-.w-no {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .w-time {
@@ -266,11 +183,5 @@ const inputText = `頻譜質心 ${PITCH_EMOTION_INPUT.sc.toLocaleString()} Hz、
 
 .assume {
   margin-top: 0.75rem;
-}
-
-@media (max-width: 860px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

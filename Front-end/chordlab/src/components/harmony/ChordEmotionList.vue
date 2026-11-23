@@ -97,39 +97,37 @@ watch(
 }
 
 /* 步數多時（和弦順序版本可能上百步）在卡片裡捲動 */
+/* 列有柔影，捲動容器會把邊緣的影子切掉，所以四邊各留一點內距、列距也加大 */
 .steps {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   max-height: 420px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 4px 10px 4px 4px;
 }
 
+/* 一列＝一段。沒有邊框，用柔影浮在卡片上（質感見 assets/main.css 的 --lift-sm） */
 .step {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
   text-align: left;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--border);
+  background: var(--surface2);
+  border: none;
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.85rem;
+  box-shadow: var(--lift-sm);
+  padding: 0.55rem 0.95rem;
   color: var(--text);
-  transition: border-color 0.15s, background 0.15s;
+  transition: box-shadow 0.15s, background 0.15s;
 }
 
+/* 滑過：再往上浮一點 */
 .step:hover {
-  border-color: var(--border-strong);
-  background: var(--surface2);
-}
-
-.step.now {
-  border-color: var(--playhead);
-  background: var(--surface2);
+  background: var(--surface);
+  box-shadow: var(--lift);
 }
 
 .no {
@@ -145,6 +143,10 @@ watch(
   font-variant-numeric: tabular-nums;
 }
 
+/* 播放到的那一段：編號的圓圈填成播放頭色。
+   這張卡的編號本來就是一個圓，所以不再另外加點：填滿的這個圓就是那一顆紅點，
+   跟軌跡卡的 .list-row.now、.now-head 同一個語彙。
+   底色、陰影一律不動，所以百餘段的清單掃下來不會被一塊色底打斷 */
 .step.now .no {
   background: var(--playhead);
   color: #ffffff;

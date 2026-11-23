@@ -80,19 +80,21 @@ const meta = computed(() => {
   gap: 6px;
 }
 
+/* 調號裡的每一個音名：淺一階的底色＋小柔影浮起，不用邊框
+   （--lift-sm 的說明在 assets/main.css 的色票區）。主音那一顆直接鋪主色 */
 .note-pill {
   min-width: 40px;
   text-align: center;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 3px 9px;
+  border-radius: 8px;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: none;
+  box-shadow: var(--lift-sm);
   font-weight: 700;
 }
 
 .note-pill.tonic {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--on-accent);
 }
 

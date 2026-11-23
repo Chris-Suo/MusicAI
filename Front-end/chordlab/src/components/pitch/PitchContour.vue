@@ -341,12 +341,14 @@ function onClick(e) {
   margin-bottom: 0.75rem;
 }
 
-/* PNG 是白底，深色主題下也保留白色外框，避免刺眼的硬邊 */
+/* 後端回傳的 PNG 是白底，深色主題下也保留白色外框，避免刺眼的硬邊。
+   外框本身不畫邊框線，跟卡片一樣用小柔影（assets/main.css 的 --lift-sm） */
 .img-frame {
   background: #ffffff;
   border-radius: var(--radius-md);
   padding: 8px;
-  border: 1px solid var(--border);
+  border: none;
+  box-shadow: var(--lift-sm);
 }
 
 .img-frame img {

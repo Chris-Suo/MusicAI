@@ -2,12 +2,13 @@
 /**
  * 總樂性元・最終值：在情緒輪上標出這首歌的最終座標（計算方式見 utils/overall.js overallPoint）
  *   最終座標 = 60% 和弦情緒軌跡平均 ＋ 20% 音高情緒軌跡平均 ＋ 20% 速度情緒軌跡平均
- * - 左邊：跟和弦／音高／速度情緒軌跡同一張圖；三個小點是各項的平均座標，虛線連到最終座標
+ * - 左邊：跟和弦／音高／速度情緒軌跡同一張圖（components/common/EmotionTrajectoryMap.vue）
+ *   三個白色錨點是各項的平均座標，虛線連到紅色的最終座標；虛線代表這不是時間上的移動，是加權合成
  * - 右邊：最終座標，以及每一項的平均座標、權重、加權後的值，可以對照算式
+ * - 這張卡沒有播放同步（最終值是整首歌一個值，不隨播放改變）
  */
-import { computed } from 'vue'
-import EmotionWheelBackdrop from '@/components/common/EmotionWheelBackdrop.vue'
-import { W, H, px, py } from '@/utils/emotionWheel.js'
+import { ref, computed } from 'vue'
+import EmotionTrajectoryMap from '@/components/common/EmotionTrajectoryMap.vue'
 import { overallPoint } from '@/utils/overall.js'
 
 const props = defineProps({
@@ -27,25 +28,12 @@ const r = computed(() =>
 
 const missing = computed(() => r.value.parts.filter((p) => !p.mean).map((p) => p.name))
 
-// 各項的標籤放在點的哪一側：離最終座標遠的那一邊，避免跟最終座標疊在一起；
-// 同一側的兩個標籤靠太近時（例如和弦與音高的平均座標差不多），後面那個往下錯開一行
-const LABEL_GAP = 28
-const partPoints = computed(() => {
-  const pts = r.value.parts
-    .filter((p) => p.mean)
-    .map((p) => {
-      const right = !r.value.final || p.mean.x >= r.value.final.x
-      return { ...p, x: px(p.mean.x), y: py(p.mean.y), lx: px(p.mean.x) + (right ? 16 : -16), ly: py(p.mean.y) + 7, anchor: right ? 'start' : 'end' }
-    })
-  for (let i = 1; i < pts.length; i++) {
-    for (let j = 0; j < i; j++) {
-      const a = pts[j]
-      const b = pts[i]
-      if (a.anchor === b.anchor && Math.abs(a.lx - b.lx) < 140 && Math.abs(a.ly - b.ly) < LABEL_GAP) b.ly = a.ly + LABEL_GAP
-    }
-  }
-  return pts
-})
+// 各項的平均座標＝錨點；圖上只標項目名稱，數值在右邊的算式表
+const anchors = computed(() => r.value.parts.filter((p) => p.mean).map((p) => ({ key: p.key, ...p.mean, label: p.name, part: p })))
+const links = computed(() => (r.value.final ? anchors.value.map((a) => ({ key: a.key, from: a, to: r.value.final })) : []))
+const mark = computed(() => (r.value.final ? { ...r.value.final, label: '最終' } : null))
+
+const hoverKey = ref(null)
 
 const num = (v) => (Math.round(v * 10) / 10).toFixed(1)
 const coord = (p) => `(${num(p.x)}, ${num(p.y)})`
@@ -61,46 +49,31 @@ const pct = (w) => `${Math.round(w * 100)}%`
       </div>
     </div>
 
-    <div class="layout">
-      <div class="map-wrap">
-        <svg class="map" :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="r.final ? `最終座標 ${coord(r.final)}` : '最終座標無法計算'">
-          <!-- 背景色輪、座標軸、外圈情緒詞（跟其他情緒軌跡共用） -->
-          <EmotionWheelBackdrop clip-id="overall-clip" />
-
-          <!-- 各項平均座標 → 最終座標 -->
-          <template v-if="r.final">
-            <line
-              v-for="p in partPoints"
-              :key="'l' + p.key"
-              :x1="p.x"
-              :y1="p.y"
-              :x2="px(r.final.x)"
-              :y2="py(r.final.y)"
-              class="link"
-            />
-          </template>
-          <g v-for="p in partPoints" :key="p.key" class="part">
-            <circle :cx="p.x" :cy="p.y" r="10" class="part-dot" />
-            <text :x="p.lx" :y="p.ly" :text-anchor="p.anchor" class="part-label">{{ p.name }} {{ pct(p.weight) }}</text>
-          </g>
-
-          <!-- 最終座標 -->
-          <g v-if="r.final" :transform="`translate(${px(r.final.x)}, ${py(r.final.y)})`" class="final">
-            <circle r="26" class="final-halo" />
-            <circle r="15" class="final-dot" />
-            <!-- 標籤放在點的下方（上方常有各項的點和軸名） -->
-            <text y="56" text-anchor="middle" class="final-label">最終 {{ coord(r.final) }}</text>
-          </g>
-        </svg>
-      </div>
+    <div class="emo-layout">
+      <EmotionTrajectoryMap
+        v-model:hover="hoverKey"
+        :anchors="anchors"
+        :links="links"
+        :mark="mark"
+        id-prefix="overall"
+        :label="r.final ? `最終座標 ${coord(r.final)}` : '最終座標無法計算'"
+      >
+        <template #tip="{ point }">
+          <strong>{{ point.part.name }}情緒軌跡 {{ coord(point.part.mean) }}</strong>
+          <span>權重 {{ pct(point.part.weight) }}</span>
+          <span class="muted">加權後 ({{ num(point.part.mean.x * point.part.weight) }}, {{ num(point.part.mean.y * point.part.weight) }})</span>
+        </template>
+      </EmotionTrajectoryMap>
 
       <div class="side">
-        <div v-if="r.final" class="final-box">
-          <span class="f-label">最終座標</span>
-          <span class="hero-value">{{ coord(r.final) }}</span>
-          <span class="f-sub">x 效價 Valence {{ num(r.final.x) }}・y 喚醒度 Arousal {{ num(r.final.y) }}</span>
+        <div class="now-box" :class="{ empty: !r.final }">
+          <div v-if="r.final" class="final">
+            <span class="f-label">最終座標</span>
+            <span class="hero-value">{{ coord(r.final) }}</span>
+            <span class="f-sub">x 效價 Valence {{ num(r.final.x) }}・y 喚醒度 Arousal {{ num(r.final.y) }}</span>
+          </div>
+          <p v-else class="note">缺少{{ missing.join('、') }}的情緒軌跡（{{ missing.includes('音高') ? '沒有主旋律音高' : '' }}{{ missing.includes('速度') ? '沒有拍點' : '' }}{{ missing.includes('和弦') ? '和弦都沒有座標' : '' }}），無法算出最終座標</p>
         </div>
-        <p v-else class="note">缺少{{ missing.join('、') }}的情緒軌跡（{{ missing.includes('音高') ? '沒有主旋律音高' : '' }}{{ missing.includes('速度') ? '沒有拍點' : '' }}{{ missing.includes('和弦') ? '和弦都沒有座標' : '' }}），無法算出最終座標</p>
 
         <div class="sub-title">算式</div>
         <table class="calc">
@@ -113,7 +86,13 @@ const pct = (w) => `${Math.round(w * 100)}%`
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in r.parts" :key="p.key">
+            <tr
+              v-for="p in r.parts"
+              :key="p.key"
+              :class="{ now: hoverKey === p.key }"
+              @pointerenter="hoverKey = p.mean ? p.key : null"
+              @pointerleave="hoverKey = null"
+            >
               <td>{{ p.name }}情緒軌跡</td>
               <td class="num">{{ p.mean ? coord(p.mean) : '—' }}</td>
               <td class="num">× {{ pct(p.weight) }}</td>
@@ -138,78 +117,10 @@ const pct = (w) => `${Math.round(w * 100)}%`
 </template>
 
 <style scoped>
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-
-/* 跟其他情緒軌跡一樣放在深色底板上 */
-.map-wrap {
-  background: #0d0f16;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.map {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.link {
-  stroke: #ffffff;
-  stroke-width: 2.5;
-  stroke-dasharray: 8 7;
-  opacity: 0.75;
-}
-
-.part-dot {
-  fill: #ffffff;
-  stroke: #11131c;
-  stroke-width: 4;
-}
-
-.part-label,
-.final-label {
-  fill: #ffffff;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  paint-order: stroke;
-  stroke: #0b0d16;
-  stroke-linejoin: round;
-}
-
-.part-label {
-  font-size: 22px;
-  stroke-width: 6px;
-}
-
-.final-label {
-  font-size: 26px;
-  stroke-width: 7px;
-}
-
-.final-halo {
-  fill: var(--playhead);
-  opacity: 0.35;
-}
-
-.final-dot {
-  fill: var(--playhead);
-  stroke: #ffffff;
-  stroke-width: 5;
-}
-
-.final-box {
+/* 版面與 .now-box 那一塊的共用樣式在 assets/main.css（五張情緒軌跡卡一致） */
+.final {
   display: flex;
   flex-direction: column;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--playhead);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
 }
 
 .f-label {
@@ -242,6 +153,11 @@ const pct = (w) => `${Math.round(w * 100)}%`
   color: var(--text2);
 }
 
+/* 滑過表格的一列時，圖上對應的點會跟著亮起來 */
+.calc tbody tr.now td {
+  background: var(--surface2);
+}
+
 .calc tfoot td {
   border-bottom: none;
   border-top: 1px solid var(--border-strong);
@@ -262,11 +178,5 @@ const pct = (w) => `${Math.round(w * 100)}%`
 
 .hint {
   margin-top: 0.5rem;
-}
-
-@media (max-width: 860px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

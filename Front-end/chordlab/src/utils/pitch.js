@@ -14,6 +14,23 @@ const OCTAVE_NAMES = {
   7: '極高音區',
 }
 
+/** 這個八度的 C（最低音）到 B（最高音）的頻率 */
+const octaveRange = (octave) => ({ fromHz: midiToHz((octave + 1) * 12), toHz: midiToHz((octave + 1) * 12 + 11) })
+
+/**
+ * 音區對照表：八度編號（科學音高記號，C4 = 中央 C）、名稱、該八度 C～B 的頻率範圍
+ * 「旋律音域」用它當對照說明；analyzePitch() 的 octaves 用的是同一份名稱與同一個算法
+ */
+export const OCTAVE_TABLE = Object.keys(OCTAVE_NAMES)
+  .map(Number)
+  .map((octave) => ({ octave, name: OCTAVE_NAMES[octave], ...octaveRange(octave) }))
+
+/**
+ * 音區的顏色：八度 2～6（低音區～高音區）→ --c-reg-1～5，相鄰音區差很遠
+ * 極低／極高音區很少見，用灰色。「音高占比」「音高占比(Hz)」「旋律音域」共用，三張卡顏色才會一致
+ */
+export const octaveColor = (octave) => (octave >= 2 && octave <= 6 ? `var(--c-reg-${octave - 1})` : 'var(--c-muted-series)')
+
 /** 把後端的 PitchContour 整理成 { hop, midi[] }；格式不對回傳 null */
 export function normalizeContour(raw) {
   if (!raw || !Array.isArray(raw.midi) || !(raw.hop > 0)) return null
@@ -62,8 +79,7 @@ export function analyzePitch(contour, key) {
     .map(([oct, c]) => ({
       octave: oct,
       name: OCTAVE_NAMES[Math.min(7, Math.max(1, oct))],
-      fromHz: midiToHz((oct + 1) * 12),
-      toHz: midiToHz((oct + 1) * 12 + 11),
+      ...octaveRange(oct),
       share: c / voiced.length,
     }))
     .filter((o) => o.share >= 0.005)

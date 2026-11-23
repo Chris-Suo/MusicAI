@@ -39,7 +39,7 @@ const zone = computed(() => currentWindow.value?.zone ?? currentStep.value?.emo.
 
 // 6 個速度區間的位置（淡淡的參考點）
 const refPoints = computed(() =>
-  TEMPO_ZONES.map((z) => ({ key: z.id, ...zonePoint(z, mode.value), label: z.range.replace(' BPM', '') + (z.empirical ? ' ★' : '') })),
+  TEMPO_ZONES.map((z) => ({ key: z.id, ...zonePoint(z, mode.value), label: z.range.replace(' BPM', '') + (z.empirical ? ' ★' : ''), zone: z })),
 )
 
 const hoverKey = ref(null)
@@ -63,7 +63,7 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
 
     <div v-if="!steps.length" class="note">沒有拍點資料（Essentia 沒有回傳），無法畫出速度情緒軌跡</div>
 
-    <div v-else class="layout">
+    <div v-else class="emo-layout">
       <EmotionTrajectoryMap
         v-model:hover="hoverKey"
         :steps="steps"
@@ -72,12 +72,21 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
         id-prefix="tempo"
         :label="`速度情緒軌跡，共 ${steps.length} 步`"
       >
-        <template #tip="{ steps: at }">
-          <strong>{{ at[0].emo.zone.range }}・{{ at[0].emo.zone.term }}</strong>
-          <span>座標 {{ coord(at[0].emo) }}</span>
-          <span v-for="s in at" :key="s.emo.key" class="muted">
-            第 {{ s.emo.short }} 段（{{ s.emo.name }}）：{{ s.windows.map((w) => bpmText(w.bpm)).join('、') }}
-          </span>
+        <template #tip="{ point }">
+          <!-- 淡淡的參考點：六個速度區間本身 -->
+          <template v-if="point.zone">
+            <strong>{{ point.zone.range }}・{{ point.zone.term }}</strong>
+            <span>座標 {{ coord(zonePoint(point.zone, mode)) }}</span>
+            <span class="muted">{{ point.zone.empirical ? '★ Yang (2025) 實測點' : '跨文獻內插' }}・這首歌沒有落在這一區</span>
+          </template>
+          <!-- 軌跡上的點 -->
+          <template v-else>
+            <strong>{{ point.steps[0].emo.zone.range }}・{{ point.steps[0].emo.zone.term }}</strong>
+            <span>座標 {{ coord(point.steps[0].emo) }}</span>
+            <span v-for="s in point.steps" :key="s.emo.key" class="muted">
+              第 {{ s.emo.short }} 段（{{ s.emo.name }}）：{{ s.windows.map((w) => bpmText(w.bpm)).join('、') }}
+            </span>
+          </template>
         </template>
       </EmotionTrajectoryMap>
 
@@ -85,8 +94,8 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
         <div class="now-box" :class="{ empty: !zone }" aria-live="polite">
           <template v-if="zone">
             <div class="now-head">
-              <span v-if="currentWindow?.bpm" class="now-bpm">{{ bpmText(currentWindow.bpm) }}</span>
-              <span v-else class="now-bpm muted">這一段拍點不足</span>
+              <span v-if="currentWindow?.bpm" class="now-main">{{ bpmText(currentWindow.bpm) }}</span>
+              <span v-else class="now-main none">這一段拍點不足</span>
               <span class="now-coord">{{ coord(zonePoint(zone, mode)) }}</span>
             </div>
             <p class="zone-line">
@@ -109,11 +118,11 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
         </div>
 
         <div class="sub-title">各段平均速度</div>
-        <ol class="windows">
+        <ol class="emo-list">
           <li v-for="w in path.windows" :key="w.no">
             <button
               type="button"
-              class="w-row"
+              class="list-row emo-row w-row"
               :class="{ now: currentWindow === w, none: !w.zone }"
               :title="`點一下從第 ${w.no} 段開始播放`"
               @pointerenter="hoverKey = w.zone ? posKey(zonePoint(w.zone, mode)) : null"
@@ -122,7 +131,7 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
               @blur="hoverKey = null"
               @click="pb.seek(w.start + 0.01)"
             >
-              <span class="w-no">{{ w.no }}</span>
+              <span class="emo-no">{{ w.no }}</span>
               <span class="w-bpm">{{ w.bpm ? bpmText(w.bpm) : '拍點不足' }}</span>
               <span class="w-zone">{{ w.zone ? w.zone.range.replace(' BPM', '') : '—' }}</span>
             </button>
@@ -137,59 +146,22 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
 </template>
 
 <style scoped>
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-
+/* 版面、.now-box 那一塊與逐段清單的共用樣式在 assets/main.css（五張情緒軌跡卡一致） */
 .mode-tag {
   font-size: 0.8rem;
   font-weight: 700;
-  padding: 2px 10px;
+  padding: 3px 11px;
   border-radius: 999px;
-  border: 1px solid var(--border-strong);
+  border: none;
+  background: var(--surface2);
+  box-shadow: var(--lift-sm);
   color: var(--text2);
   white-space: nowrap;
 }
 
-.now-box {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--playhead);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
-  min-height: 120px;
-}
-
-.now-box.empty {
-  border-left-color: var(--border-strong);
-  display: flex;
-  align-items: center;
-}
-
-.now-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-}
-
-.now-bpm {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.now-bpm.muted {
+/* 這一段拍點不足時沒有 BPM，字小一點、灰一點 */
+.now-main.none {
   font-size: 1.05rem;
-  color: var(--muted);
-}
-
-.now-coord {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
   color: var(--muted);
 }
 
@@ -255,54 +227,12 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
   color: var(--accent);
 }
 
-.now-step {
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.windows {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
 .w-row {
-  width: 100%;
-  display: grid;
   grid-template-columns: 1.8em 1fr auto;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  text-align: left;
-  color: var(--text);
-}
-
-.w-row:hover {
-  background: var(--surface2);
-  border-color: var(--border);
-}
-
-.w-row.now {
-  border-color: var(--playhead);
 }
 
 .w-row.none {
   color: var(--muted);
-}
-
-.w-no {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .w-bpm {
@@ -318,11 +248,5 @@ const sources = (z) => z.sources.map((k) => TEMPO_SOURCES[k])
 
 .assume {
   margin-top: 0.75rem;
-}
-
-@media (max-width: 860px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

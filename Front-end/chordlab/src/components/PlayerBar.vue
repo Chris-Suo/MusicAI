@@ -150,6 +150,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </template>
 
 <style scoped>
+/* 播放列釘在頁面最上面，是整頁最上層的一塊，所以用最強的那一階柔影浮起
+   （--lift 的說明在 assets/main.css 的色票區），不用邊框 */
 .player {
   position: sticky;
   top: 0;
@@ -158,10 +160,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   align-items: center;
   gap: 16px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-lg);
   padding: 0.75rem 1.25rem;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--lift);
 }
 
 .play {
@@ -222,14 +224,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   white-space: nowrap;
 }
 
+/* 目前這個和弦的級數（I、V7…）：跟全站的小標籤（.pill、調號的 .note-pill）同一種做法，
+   淺一階的底色＋小柔影浮起，不用邊框 */
 .deg {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.85rem;
   background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0 7px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: var(--lift-sm);
+  padding: 1px 8px;
 }
 
 .clock {

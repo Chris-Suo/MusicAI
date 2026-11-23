@@ -8,14 +8,12 @@ import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
 import { fmtHz } from '@/utils/theory.js'
 import { fmtPct } from '@/utils/stats.js'
+import { octaveColor as regColor } from '@/utils/pitch.js'
 
 const props = defineProps({
   // utils/pitch.js analyzePitch() 的結果
   stats: { type: Object, required: true },
 })
-
-// 八度 2～6（低音區～高音區）→ --c-reg-1～5；極低／極高音區很少見，用灰色
-const regColor = (octave) => (octave >= 2 && octave <= 6 ? `var(--c-reg-${octave - 1})` : 'var(--c-muted-series)')
 
 const groups = computed(() =>
   props.stats.octaves.map((o) => ({
