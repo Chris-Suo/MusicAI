@@ -55,9 +55,7 @@ const PARTS = [
     <div class="card-head">
       <div>
         <h3 class="card-title">綜合軌跡</h3>
-        <p class="card-desc">
-          每 {{ r.windowSec }} 秒一段：和弦 {{ pct(POINT_WEIGHTS.chord) }}、音高 {{ pct(POINT_WEIGHTS.pitch) }}、速度 {{ pct(POINT_WEIGHTS.tempo) }} 加權的綜合座標，依時間連成軌跡（x 效價、y 喚醒度）
-        </p>
+        
       </div>
     </div>
 
@@ -100,7 +98,7 @@ const PARTS = [
             </div>
             <dl class="facts">
               <div v-for="part in PARTS" :key="part.key">
-                <dt>{{ part.name }} × {{ pct(POINT_WEIGHTS[part.key]) }}</dt>
+                <dt>{{ part.name }} 平均座標</dt>
                 <dd>{{ currentWindow.parts[part.key] ? coord(currentWindow.parts[part.key]) : '—' }}</dd>
               </div>
             </dl>

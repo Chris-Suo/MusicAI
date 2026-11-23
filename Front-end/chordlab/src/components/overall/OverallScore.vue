@@ -45,7 +45,6 @@ const pct = (w) => `${Math.round(w * 100)}%`
     <div class="card-head">
       <div>
         <h3 class="card-title">最終值</h3>
-        <p class="card-desc">和弦 60%、音高 20%、速度 20%：三條情緒軌跡的平均座標依權重加總（x 效價、y 喚醒度）</p>
       </div>
     </div>
 
@@ -80,9 +79,9 @@ const pct = (w) => `${Math.round(w * 100)}%`
           <thead>
             <tr>
               <th scope="col">項目</th>
+              <!-- <th scope="col" class="num">平均座標</th>
+              <th scope="col" class="num">權重</th> -->
               <th scope="col" class="num">平均座標</th>
-              <th scope="col" class="num">權重</th>
-              <th scope="col" class="num">加權後</th>
             </tr>
           </thead>
           <tbody>
@@ -94,16 +93,15 @@ const pct = (w) => `${Math.round(w * 100)}%`
               @pointerleave="hoverKey = null"
             >
               <td>{{ p.name }}情緒軌跡</td>
-              <td class="num">{{ p.mean ? coord(p.mean) : '—' }}</td>
-              <td class="num">× {{ pct(p.weight) }}</td>
+              <!-- <td class="num">{{ p.mean ? coord(p.mean) : '—' }}</td>
+              <td class="num">× {{ pct(p.weight) }}</td> -->
               <td class="num strong">{{ p.mean ? `(${num(p.mean.x * p.weight)}, ${num(p.mean.y * p.weight)})` : '—' }}</td>
             </tr>
           </tbody>
           <tfoot v-if="r.final">
             <tr>
               <td>加總＝最終座標</td>
-              <td />
-              <td />
+              
               <td class="num strong">{{ coord(r.final) }}</td>
             </tr>
           </tfoot>
