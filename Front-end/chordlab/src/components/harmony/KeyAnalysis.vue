@@ -198,10 +198,12 @@ watch(
 </template>
 
 <style scoped>
+/* 兩組分段切換（級數寫法、每格長度）之間的間距要比組內大，
+   不然四顆會看成一排（組內的間距在 assets/main.css 的 .seg） */
 .toggles {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
 }
 
 /* 主要循環＋常見進行（同一列） */
@@ -213,16 +215,18 @@ watch(
   margin-bottom: 1.25rem;
 }
 
+/* 循環的小卡：跟全站的卡片同一套質感，平常浮起、選到的凹下去 */
 .main-loop,
 .chip {
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
   background: var(--surface);
-  border: 1px solid var(--border-strong);
+  border: none;
   border-radius: var(--radius-md);
+  box-shadow: var(--lift-sm);
   color: var(--text);
-  transition: border-color 0.15s, background 0.15s;
+  transition: box-shadow 0.15s, background 0.15s;
 }
 
 .main-loop {
@@ -236,14 +240,14 @@ watch(
 
 .main-loop:hover,
 .chip:hover {
-  border-color: var(--accent);
+  box-shadow: var(--lift);
 }
 
+/* 選到的那一個：主色的細框留著（它會同步標在下面的格子上，不能只靠影子），再加上凹陷 */
 .main-loop.active,
 .chip.active {
-  border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent), var(--press);
 }
 
 .ml-label {
@@ -295,7 +299,8 @@ watch(
   height: 68px;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--fc, var(--surface3)) var(--tint), var(--surface));
-  border: 1px solid var(--border);
+  /* 沒有外框，靠底色的功能色淡底分格；上面那條 6px 才是資訊（和聲功能色） */
+  border: none;
   border-top: 6px solid var(--fc, var(--border));
   display: flex;
   flex-direction: column;
@@ -307,8 +312,7 @@ watch(
 }
 
 .cell:hover {
-  border-color: var(--border-strong);
-  border-top-color: var(--fc, var(--border-strong));
+  box-shadow: var(--lift-sm);
 }
 
 .cell.fn-none {

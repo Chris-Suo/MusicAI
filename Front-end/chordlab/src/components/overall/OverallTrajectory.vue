@@ -63,7 +63,7 @@ const PARTS = [
 
     <div v-if="!steps.length" class="note">每一段都缺少和弦、音高或速度其中一項，無法畫出綜合軌跡</div>
 
-    <div v-else class="layout">
+    <div v-else class="emo-layout">
       <EmotionTrajectoryMap
         v-model:hover="hoverKey"
         :steps="steps"
@@ -72,11 +72,21 @@ const PARTS = [
         id-prefix="overall-traj"
         :label="`綜合軌跡，共 ${steps.length} 段`"
       >
-        <template #tip="{ steps: at }">
-          <template v-for="s in at" :key="s.emo.key">
-            <strong>第 {{ s.emo.window }} 段・{{ s.emo.name }}</strong>
-            <span>綜合座標 {{ coord(s.emo) }}</span>
-            <span class="muted">和弦 {{ coord(s.win.parts.chord) }}・音高 {{ coord(s.win.parts.pitch) }}・速度 {{ coord(s.win.parts.tempo) }}</span>
+        <!-- EmotionTrajectoryMap 的 #tip 給的是滑到的那個點（point），
+             參考點跟軌跡點都會進來，所以要分開寫：軌跡點才有 point.steps -->
+        <template #tip="{ point }">
+          <!-- 淡淡的參考點：整首歌的最終座標 -->
+          <template v-if="!point.steps">
+            <strong>整首最終值 {{ coord(point) }}</strong>
+            <span class="muted">三條軌跡各自的平均再加權，不是某一段</span>
+          </template>
+          <!-- 軌跡上的點；同一個座標可能有好幾段 -->
+          <template v-else>
+            <template v-for="s in point.steps" :key="s.emo.key">
+              <strong>第 {{ s.emo.window }} 段・{{ s.emo.name }}</strong>
+              <span>綜合座標 {{ coord(s.emo) }}</span>
+              <span class="muted">和弦 {{ coord(s.win.parts.chord) }}・音高 {{ coord(s.win.parts.pitch) }}・速度 {{ coord(s.win.parts.tempo) }}</span>
+            </template>
           </template>
         </template>
       </EmotionTrajectoryMap>
@@ -84,28 +94,27 @@ const PARTS = [
       <div class="side">
         <div class="now-box" :class="{ empty: !currentWindow }" aria-live="polite">
           <template v-if="currentWindow">
-            <p class="now-label">第 {{ currentWindow.no }} 段・{{ currentWindow.name }}</p>
-            <p v-if="currentWindow.point" class="now-coord">{{ coord(currentWindow.point) }}</p>
-            <p v-else class="now-missing">缺少{{ currentWindow.missing.join('、') }}，這一段沒有綜合座標</p>
-            <table class="calc">
-              <tbody>
-                <tr v-for="part in PARTS" :key="part.key">
-                  <td>{{ part.name }}</td>
-                  <td class="num">{{ currentWindow.parts[part.key] ? coord(currentWindow.parts[part.key]) : '—' }}</td>
-                  <td class="num muted">× {{ pct(POINT_WEIGHTS[part.key]) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="now-head">
+              <span class="now-main">{{ currentWindow.point ? coord(currentWindow.point) : '—' }}</span>
+              <span v-if="!currentWindow.point" class="now-coord">缺少{{ currentWindow.missing.join('、') }}，這一段沒有綜合座標</span>
+            </div>
+            <dl class="facts">
+              <div v-for="part in PARTS" :key="part.key">
+                <dt>{{ part.name }} × {{ pct(POINT_WEIGHTS[part.key]) }}</dt>
+                <dd>{{ currentWindow.parts[part.key] ? coord(currentWindow.parts[part.key]) : '—' }}</dd>
+              </div>
+            </dl>
+            <p class="now-step">第 {{ currentWindow.no }} 段・{{ currentWindow.name }}</p>
           </template>
           <p v-else class="note">播放時這裡會顯示目前這一段的綜合座標，以及和弦、音高、速度各自的座標</p>
         </div>
 
         <div class="sub-title">各段綜合座標</div>
-        <ol class="windows">
+        <ol class="emo-list">
           <li v-for="w in r.windows" :key="w.no">
             <button
               type="button"
-              class="w-row"
+              class="list-row emo-row w-row"
               :class="{ now: currentWindow === w, none: !w.point }"
               :title="`點一下從第 ${w.no} 段開始播放`"
               @pointerenter="hoverKey = w.point ? posKey(w.point) : null"
@@ -114,7 +123,7 @@ const PARTS = [
               @blur="hoverKey = null"
               @click="pb.seek(w.start + 0.01)"
             >
-              <span class="w-no">{{ w.no }}</span>
+              <span class="emo-no">{{ w.no }}</span>
               <span class="w-time">{{ w.name }}</span>
               <span class="w-val">{{ w.point ? coord(w.point) : `缺${w.missing.join('、')}` }}</span>
             </button>
@@ -129,110 +138,38 @@ const PARTS = [
 </template>
 
 <style scoped>
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(240px, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
+/* 版面（.emo-layout）、上面那一塊（.now-box、.now-head、.now-main、.now-step）
+   與逐段清單（.emo-list、.list-row、.emo-row、.emo-no）的樣式都在 assets/main.css，
+   五張情緒軌跡卡共用；這裡只寫這張卡自己的部分 */
 
-.now-box {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--playhead);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
-  min-height: 120px;
-}
-
-.now-box.empty {
-  border-left-color: var(--border-strong);
-  display: flex;
-  align-items: center;
-}
-
-.now-label {
+/* 這一段的三個分項：跟音高、速度兩張卡的 .facts 同一個寫法（左邊名稱、右邊數值）。
+   權重寫進左邊的名稱裡，就不用為了它多一欄 */
+.facts {
+  margin-top: 0.5rem;
   font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.now-coord {
-  font-size: 1.6rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.now-missing {
-  font-weight: 600;
-  color: var(--text2);
-  margin: 0.25rem 0;
-}
-
-.calc {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-  margin-top: 0.25rem;
-}
-
-.calc td {
-  padding: 3px 4px;
-  border-top: 1px solid var(--border);
-  color: var(--text2);
-}
-
-.calc .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.calc .muted {
-  color: var(--muted);
-}
-
-.windows {
-  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
-.w-row {
-  width: 100%;
+.facts div {
   display: grid;
-  grid-template-columns: 1.8em auto 1fr;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  text-align: left;
-  color: var(--text);
+  grid-template-columns: 7.5em 1fr;
+  gap: 8px;
+  padding: 2px 0;
 }
 
-.w-row:hover {
-  background: var(--surface2);
-  border-color: var(--border);
-}
-
-.w-row.now {
-  border-color: var(--playhead);
-}
-
-.w-row.none {
+.facts dt {
   color: var(--muted);
 }
 
-.w-no {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
+.facts dd {
   font-variant-numeric: tabular-nums;
+}
+
+/* 清單一列的欄位：段號、時間、座標 */
+.w-row {
+  grid-template-columns: 1.8em auto 1fr;
 }
 
 .w-time {
@@ -247,6 +184,11 @@ const PARTS = [
   font-variant-numeric: tabular-nums;
 }
 
+/* 三項缺一項的段：沒有綜合座標，整列壓淡 */
+.w-row.none {
+  color: var(--muted);
+}
+
 .w-row.none .w-val {
   font-weight: 500;
   font-size: 0.85rem;
@@ -254,11 +196,5 @@ const PARTS = [
 
 .assume {
   margin-top: 0.75rem;
-}
-
-@media (max-width: 860px) {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

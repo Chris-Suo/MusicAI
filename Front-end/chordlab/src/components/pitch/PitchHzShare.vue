@@ -7,7 +7,7 @@
  */
 import { computed } from 'vue'
 import ShareBars from '@/components/common/ShareBars.vue'
-import { hzShares, HZ_BIN } from '@/utils/pitch.js'
+import { hzShares, HZ_BIN, octaveColor as regColor } from '@/utils/pitch.js'
 
 const props = defineProps({
   // utils/pitch.js normalizeContour() 的結果
@@ -15,9 +15,6 @@ const props = defineProps({
   // utils/pitch.js analyzePitch() 的結果（上方音區色條用）
   stats: { type: Object, required: true },
 })
-
-// 跟「音高占比」相同：八度 2～6 → --c-reg-1～5，其他用灰色
-const regColor = (octave) => (octave >= 2 && octave <= 6 ? `var(--c-reg-${octave - 1})` : 'var(--c-muted-series)')
 
 const groups = computed(() =>
   props.stats.octaves.map((o) => ({

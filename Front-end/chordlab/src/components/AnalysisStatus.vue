@@ -40,13 +40,16 @@ defineEmits(['retry', 'back'])
 </template>
 
 <style scoped>
+/* 分析中／失敗的那一條：跟卡片同一種材質，沒有邊框，靠柔影浮起
+   （--lift 的說明在 assets/main.css 的色票區） */
 .analysis-status {
   display: flex;
   align-items: center;
   gap: 14px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-lg);
+  box-shadow: var(--lift);
   padding: 1rem 1.25rem;
 }
 

@@ -184,7 +184,14 @@ const term = computed(() => tempoTerm(props.bpm))
   font-weight: 700;
 }
 
+/* 選到的那一列：原本左邊有一條 4px 的主色條，現在整列做成圓角色塊，跟全站的卡片語彙一致 */
 .terms tr.on td:first-child {
-  box-shadow: inset 4px 0 0 var(--accent);
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.terms tr.on td:last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
 }
 </style>
